@@ -165,7 +165,7 @@ def main (model_path ):
 
         serial =pkg .get ('serial_number','unknown_serial')
         output_dir =f"./external_assessor/{serial}/lr"
-        os .makedirs (output_dir ,exist_ok =True )
+        os.makedirs (output_dir ,exist_ok =True )
 
     except Exception as e :
         print (f"[ERROR] Could not load data from PKL: {e}")
