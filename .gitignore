@@ -9,4 +9,4 @@ catboost_info/
 /run_infer.py
 /run_analysis.py
 /Legacy
-/comment_remover1.py
+/comment_remover.py

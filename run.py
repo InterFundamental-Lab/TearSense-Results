@@ -6,9 +6,10 @@ import joblib
 
 do_shap =False 
 
-import runtime.external_assessor_LR 
-import runtime.external_assessor_shap 
-import runtime.external_assessor 
+import runtime.external_assessor_LR as external_assessor_LR
+import runtime.external_assessor_shap as external_assessor_shap
+import runtime.external_assessor as external_assessor
+import runtime.find_best as find_best
 
 def get_serial_from_path (model_path ):
     """Extracts serial from filename (e.g., '.../model/05022026_123.pkl' -> '05022026_123')"""
@@ -144,6 +145,10 @@ def main ():
 
     print ("\n"+"="*60 )
     print (f"Assessment Complete. All results are in '{ASSESSOR_DIR }/'")
+
+    print('now running bestie finder')
+    
+    find_best.main(folder_path="./external_assessor/metrics/")
 
 if __name__ =="__main__":
     main ()
