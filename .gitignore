@@ -1,3 +1,4 @@
 **/*.pkl
 **/*.DS_STORE
 .vscode
+**/__pycache__/
