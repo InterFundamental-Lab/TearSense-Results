@@ -1,21 +1,3 @@
-"""
-External Assessor for TearSense v3.0 Models with LR Baseline
-═════════════════════════════════════════════════════════════
-
-Performs independent evaluation of exported model bundle on holdout test set,
-including comparison against Logistic Regression baseline.
-
-Usage:
-    python external_assessor.py --model_path outputs/SERIAL/model/SERIAL.pkl
-
-Outputs (saved to external_assessor/SERIAL/):
-    - clinical_metrics_SERIAL.json  (TearSense + LR metrics)
-    - auc_comparison_SERIAL.png     (ROC curves: TearSense vs LR)
-    - calibration_comparison_SERIAL.png
-    - dca_comparison_SERIAL.png
-    - lr_coefficients_SERIAL.csv
-"""
-
 import joblib
 import os
 import json

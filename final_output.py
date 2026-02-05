@@ -1,17 +1,3 @@
-"""
-TearSense Layer Evaluation with Logistic Regression Baseline
-═════════════════════════════════════════════════════════════
-
-Evaluates model performance at each layer AND compares against LR baseline:
-- Layer 0: Logistic Regression (baseline)
-- Layer 1: Individual base models (CatBoost, XGBoost, LightGBM, RandomForest)
-- Layer 2: Meta-learner (uncalibrated)
-- Layer 3: Full pipeline (calibrated)
-
-Usage:
-    python final_output.py --model outputs/SERIAL/model/SERIAL.pkl
-"""
-
 import joblib
 import numpy as np
 import pandas as pd
