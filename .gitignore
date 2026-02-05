@@ -1,4 +1,11 @@
 **/*.pkl
-**/*.DS_STORE
 .vscode
 **/__pycache__/
+**/.DS_Store
+catboost_info/
+catboost_info/
+**/catboost_info/
+**/*.zip
+/run_infer.py
+/run_analysis.py
+/Legacy
