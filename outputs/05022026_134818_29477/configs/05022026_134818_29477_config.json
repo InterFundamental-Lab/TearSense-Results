@@ -1,0 +1,92 @@
+{
+  "serial_number": "05022026_134818_29477",
+  "export_version": "3.0",
+  "pipeline": {
+    "version": "3.0",
+    "architecture": "fold_ensemble",
+    "method": "logistic",
+    "calibration": "platt",
+    "chain": [
+      "feature_engineering",
+      "categorical_encoding (cat: native, xgb/lgbm/rf: .cat.codes + fillna(-999))",
+      "fold_ensemble (5 folds \u00d7 4 algos \u2192 average)",
+      "meta_features (13) \u2192 meta_learner",
+      "calibration (platt)",
+      "threshold \u2192 binary"
+    ]
+  },
+  "best_method": "logistic+platt",
+  "is_weighted_avg": false,
+  "n_folds": 5,
+  "n_base_models": 20,
+  "weights": {
+    "cat": 0.3236827787417758,
+    "xgb": 0.28068593808814674,
+    "lgbm": 0.12711295681575002,
+    "rf": 0.26851832635432743
+  },
+  "stacking_config": {
+    "use_interactions": true,
+    "use_rank_features": false
+  },
+  "feature_names": [
+    "Gender",
+    "Aged",
+    "InsuranceType",
+    "Pre-Op_ROM_Pre-Op_FF",
+    "Pre-Op_ROM_Pre-Op_Abd",
+    "Pre-Op_ROM_Pre-Op_IR",
+    "Pre-Op_ROM_Pre-Op_ER",
+    "tear_characteristics_Full",
+    "tear_characteristics_Tear_Thickness",
+    "tear_characteristics_Tear_AntPost",
+    "tear_characteristics_Tear_MedLat",
+    "PREOP_FOP_Activity_Pain",
+    "PREOP_FOP_Sleep_Pain",
+    "PREOP_FOP_Extreme_Pain",
+    "PREOP_LOP_Overhead",
+    "PREOP_LOP_Sleep",
+    "PREOP_DIFFICULTY_Behind_Back",
+    "PREOP_DIFFICULTY_Overhead",
+    "PREOP_Strength_IR",
+    "PREOP_Strength_ER",
+    "PREOP_Strength_SS",
+    "PREOP_Strength_LO",
+    "PREOP_Strength_Add",
+    "Tear_AP_ML_Ratio",
+    "Tear_Area_cm2",
+    "Log_Tear_Area",
+    "ER_IR_Ratio",
+    "ROM_Deficit_Score",
+    "Pain_Frequency_Mean"
+  ],
+  "cat_cols": [
+    "Gender",
+    "InsuranceType",
+    "tear_characteristics_Full"
+  ],
+  "feature_engineering": true,
+  "optimal_threshold": 0.18000000000000002,
+  "calibration_method": "platt",
+  "metrics": {
+    "test_auc": 0.7865233597510224,
+    "test_brier": 0.08904814171485935,
+    "test_auc_ci_95": [
+      0.7217229660787658,
+      0.8496588643730982
+    ],
+    "test_brier_ci_95": [
+      0.07129382072992686,
+      0.10710923276730572
+    ],
+    "train_auc": 0.7918568637513617,
+    "train_brier": 0.09045505948742051,
+    "verified": true
+  },
+  "class_distribution": {
+    "train_positive": 246,
+    "train_negative": 1806,
+    "test_positive": 61,
+    "test_negative": 453
+  }
+}

@@ -1,0 +1,71 @@
+{
+    "Final_Model": {
+        "AUC": 0.7804798610357181,
+        "AUC_95CI_lower": 0.7179339966587875,
+        "AUC_95CI_upper": 0.8378761586820851,
+        "Brier": 0.08825208897898089,
+        "Brier_95CI_lower": 0.07010074115618381,
+        "Brier_95CI_upper": 0.10658925449813694,
+        "Best_Method": "lgbm_meta",
+        "Optimal_Threshold": 0.21000000000000002
+    },
+    "LR_Baseline": {
+        "AUC": null,
+        "Brier": null,
+        "F1_Score": null,
+        "Sensitivity": null,
+        "Specificity": null,
+        "PPV": null,
+        "NPV": null,
+        "Net_Benefit": null,
+        "Calibration_Slope": null,
+        "Threshold": null
+    },
+    "TearSense_vs_LR": {
+        "AUC_Improvement": null,
+        "AUC_Improvement_Pct": null,
+        "Brier_Improvement": null
+    },
+    "Individual_Assessment_Test": {
+        "CatBoost": {
+            "AUC": 0.7816740853327544,
+            "Brier": 0.092985573085189
+        },
+        "XGBoost": {
+            "AUC": 0.7776571490609056,
+            "Brier": 0.09746385196965453
+        },
+        "LightGBM": {
+            "AUC": 0.7706003691238735,
+            "Brier": 0.23264223869100029
+        },
+        "RandomForest": {
+            "AUC": 0.7855462671443564,
+            "Brier": 0.12972521196515455
+        }
+    },
+    "Self_Assessment_CV": {
+        "CatBoost": {
+            "AUC": 0.8016008067057414,
+            "Brier": 0.10565900870181996
+        },
+        "XGBoost": {
+            "AUC": 0.7763057198678298,
+            "Brier": 0.20651146457772962
+        },
+        "LightGBM": {
+            "AUC": 0.7846203711206547,
+            "Brier": 0.23245470870335366
+        },
+        "RandomForest": {
+            "AUC": 0.7856467601220862,
+            "Brier": 0.13317700111602884
+        }
+    },
+    "Ensemble_Weights": {
+        "CatBoost": 0.42857142857142855,
+        "XGBoost": 0.0,
+        "LightGBM": 0.21428571428571427,
+        "RandomForest": 0.35714285714285715
+    }
+}

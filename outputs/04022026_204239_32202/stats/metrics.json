@@ -1,0 +1,54 @@
+{
+    "Final_Model": {
+        "AUC": 0.7819816885607788,
+        "AUC_95CI_lower": 0.7166762396537328,
+        "AUC_95CI_upper": 0.8429332107843138,
+        "Brier": 0.0887225247551331,
+        "Brier_95CI_lower": 0.07062060755921985,
+        "Brier_95CI_upper": 0.10577998020990009,
+        "Best_Method": "lgbm_meta",
+        "Optimal_Threshold": 0.18000000000000005
+    },
+    "Individual_Assessment_Test": {
+        "CatBoost": {
+            "AUC": 0.7872833206673181,
+            "Brier": 0.0881833361198379
+        },
+        "XGBoost": {
+            "AUC": 0.7793218253537436,
+            "Brier": 0.09394104212156613
+        },
+        "LightGBM": {
+            "AUC": 0.7724821771070821,
+            "Brier": 0.1064459922096521
+        },
+        "RandomForest": {
+            "AUC": 0.76860999529548,
+            "Brier": 0.0936176842235461
+        }
+    },
+    "Self_Assessment_CV": {
+        "CatBoost": {
+            "AUC": 0.7991683672688555,
+            "Brier": 0.09338326882314359
+        },
+        "XGBoost": {
+            "AUC": 0.765874222797887,
+            "Brier": 0.10992423648748464
+        },
+        "LightGBM": {
+            "AUC": 0.7709109634885619,
+            "Brier": 0.11666064828111386
+        },
+        "RandomForest": {
+            "AUC": 0.77368639123668,
+            "Brier": 0.10069994006260405
+        }
+    },
+    "Ensemble_Weights": {
+        "CatBoost": 0.6,
+        "XGBoost": 0.0,
+        "LightGBM": 0.2,
+        "RandomForest": 0.2
+    }
+}
