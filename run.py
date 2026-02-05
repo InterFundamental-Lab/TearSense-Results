@@ -6,16 +6,9 @@ import joblib
 
 do_shap =False 
 
-
-
-try :
-    import external_assessor_LR 
-    import external_assessor_shap 
-    import external_assessor 
-except ImportError as e :
-    print (f"[CRITICAL] Could not import assessment modules. Make sure they are in the folder.")
-    print (f"Error: {e }")
-    sys .exit (1 )
+import runtime.external_assessor_LR 
+import runtime.external_assessor_shap 
+import runtime.external_assessor 
 
 def get_serial_from_path (model_path ):
     """Extracts serial from filename (e.g., '.../model/05022026_123.pkl' -> '05022026_123')"""
