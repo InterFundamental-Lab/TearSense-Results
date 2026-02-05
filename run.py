@@ -104,44 +104,19 @@ def main ():
         print (f"Path: {model_path }")
         print ("-"*40 )
 
-        try :
+        print ("   > Running Logistic Regression Assessor...")
+        external_assessor_LR .main (model_path )
 
-            print ("   > Running Logistic Regression Assessor...")
-            try :
-                external_assessor_LR .main (model_path )
-            except AttributeError :
-                print ("     [FAIL] external_assessor_LR has no 'main' function.")
-            except Exception as e :
-                print (f"     [FAIL] Error: {e }")
+        if do_shap :
+            print ("   > Running SHAP Analysis...")
+            external_assessor_shap .main (model_path )
 
+        print ("   > Running General External Assessor...")
+        external_assessor .main (model_path )
 
-            if do_shap :
-                print ("   > Running SHAP Analysis...")
-                try :
-                    external_assessor_shap .main (model_path )
-                except AttributeError :
-                    print ("     [FAIL] external_assessor_shap has no 'main' function.")
-                except Exception as e :
-                    print (f"     [FAIL] Error: {e }")
-
-
-            print ("   > Running General External Assessor...")
-            try :
-                external_assessor .main (model_path )
-            except AttributeError :
-                print ("     [FAIL] external_assessor has no 'main' function.")
-            except Exception as e :
-                print (f"     [FAIL] Error: {e }")
-
-
-            print ("   > Organizing output files...")
-            move_outputs (serial ,ASSESSOR_DIR )
-            print (f"   [DONE] Results saved to {ASSESSOR_DIR }/{serial }/")
-
-        except Exception as e :
-            print (f"[CRITICAL ERROR] Processing failed for {serial }: {e }")
-            import traceback 
-            traceback .print_exc ()
+        print ("   > Organizing output files...")
+        move_outputs (serial ,ASSESSOR_DIR )
+        print (f"   [DONE] Results saved to {ASSESSOR_DIR }/{serial }/")
 
     print ("\n"+"="*60 )
     print (f"Assessment Complete. All results are in '{ASSESSOR_DIR }/'")

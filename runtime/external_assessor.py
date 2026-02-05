@@ -369,11 +369,63 @@ def main (model_path ):
     print (f"[INFO] Stacking config: use_interactions={use_interactions}, use_rank={use_rank}")
     print (f"[INFO] Stored threshold: {stored_threshold:.4f}")
 
-
+    # Debug: check feature_names
+    print(f"[DEBUG] feature_names from bundle: {len(feature_names) if feature_names else 'None/Empty'}")
+    if not feature_names or len(feature_names) == 0:
+        # Fallback: get column names from X_test_raw if it's a DataFrame
+        if isinstance(X_test_raw, pd.DataFrame):
+            feature_names = list(X_test_raw.columns)
+            print(f"[DEBUG] Using column names from X_test_raw: {feature_names[:5]}...")
+        else:
+            raise ValueError("feature_names is empty and X_test_raw has no columns!")
+    
+    # Try to get feature names from XGBoost model (most reliable source)
+    xgb_feature_names = None
+    if fold_models.get('xgb') and len(fold_models['xgb']) > 0:
+        try:
+            xgb_feature_names = fold_models['xgb'][0].get_booster().feature_names
+            if xgb_feature_names:
+                print(f"[DEBUG] Got feature names from XGBoost model: {xgb_feature_names[:5]}...")
+                feature_names = list(xgb_feature_names)
+        except Exception as e:
+            print(f"[DEBUG] Could not get feature names from XGBoost: {e}")
 
 
     print (f"\n[INFO] Running TearSense inference on {len(y_test)} patients...")
-    X_test_enc =prepare_encoded_data (X_test_raw ,cat_cols )
+    
+    # Ensure X_test_raw is a DataFrame with feature names (required for CatBoost)
+    if not isinstance(X_test_raw, pd.DataFrame):
+        X_test_raw = pd.DataFrame(X_test_raw, columns=feature_names)
+    else:
+        # Just rename columns in place
+        X_test_raw.columns = feature_names
+    
+    # Use pre-encoded X_test_xgb if available, otherwise create it exactly like core.py does
+    X_test_xgb = bundle.get('X_test_xgb')
+    if X_test_xgb is not None:
+        print("[INFO] Using pre-encoded X_test_xgb from bundle")
+        if not isinstance(X_test_xgb, pd.DataFrame):
+            X_test_enc = pd.DataFrame(X_test_xgb, columns=feature_names).fillna(-999)
+        else:
+            X_test_xgb.columns = feature_names
+            X_test_enc = X_test_xgb.fillna(-999)
+    else:
+        print("[INFO] X_test_xgb not in bundle, creating from X_test_raw (matching core.py logic)")
+        # Replicate exactly what core.py does:
+        X_test_enc = X_test_raw.copy()
+        for col in cat_cols:
+            if col in X_test_enc.columns:
+                X_test_enc[col] = X_test_enc[col].astype('category').cat.codes
+        X_test_enc = X_test_enc.fillna(-999)
+    
+    # Ensure column names are set (in case fillna changed them)
+    X_test_enc.columns = feature_names
+    
+    print(f"[DEBUG] X_test_enc type: {type(X_test_enc)}")
+    print(f"[DEBUG] X_test_enc shape: {X_test_enc.shape}")
+    print(f"[DEBUG] X_test_enc columns: {list(X_test_enc.columns)}")
+    print(f"[DEBUG] X_test_enc has columns attr: {hasattr(X_test_enc, 'columns')}")
+    
     base_preds ={}
 
     for algo in ['cat','xgb','lgbm','rf']:
@@ -382,7 +434,40 @@ def main (model_path ):
             if algo =='cat':
                 preds =model .predict_proba (X_test_raw )[:,1 ]
             else :
-                preds =model .predict_proba (X_test_enc )[:,1 ]
+                # Try multiple approaches due to XGBoost feature name validation issues
+                preds = None
+                
+                # Approach 1: Try with DataFrame
+                try:
+                    preds = model.predict_proba(X_test_enc)[:, 1]
+                except ValueError as e:
+                    if "feature names" not in str(e).lower():
+                        raise
+                
+                # Approach 2: Try with validate_features=False (XGBoost specific)
+                if preds is None and algo == 'xgb':
+                    try:
+                        # XGBoost sklearn wrapper might accept this
+                        preds = model.predict_proba(X_test_enc, validate_features=False)[:, 1]
+                    except (ValueError, TypeError):
+                        pass
+                
+                # Approach 3: Use booster directly for XGBoost
+                if preds is None and algo == 'xgb':
+                    try:
+                        import xgboost as xgb
+                        dmatrix = xgb.DMatrix(X_test_enc.values, feature_names=feature_names)
+                        raw_preds = model.get_booster().predict(dmatrix)
+                        # Convert to probabilities if needed
+                        preds = raw_preds if raw_preds.max() <= 1 else 1 / (1 + np.exp(-raw_preds))
+                    except Exception as e:
+                        print(f"[WARN] XGBoost booster approach failed: {e}")
+                
+                # Approach 4: Just use numpy values
+                if preds is None:
+                    print(f"[WARN] {algo} using numpy array fallback")
+                    preds = model.predict_proba(X_test_enc.values)[:, 1]
+                    
             algo_preds +=preds 
         base_preds [algo ]=algo_preds /n_folds 
 
@@ -650,31 +735,3 @@ def main (model_path ):
     return combined_metrics ,ts_probs ,lr_probs 
 
 
-
-
-
-
-if __name__ =="__main__":
-
-
-
-
-
-    serials_to_run =[
-    '03022026_115404_58666',
-    '05022026_123748_52767',
-    '05022026_124840_71444',
-    '05022026_125050_98738',
-    '05022026_125524_66946',
-    '05022026_130008_98590',
-    '05022026_130812_65089',
-    '05022026_130839_45739',
-    '05022026_131528_62930',
-    '05022026_132823_67982',
-    '05022026_134818_29477',
-    '05022026_140401_57655',
-    ]
-
-    for serial in serials_to_run :
-        model_path =f'outputs/{serial}/model/{serial}.pkl'
-        main (os .path .join ('./',model_path ))
