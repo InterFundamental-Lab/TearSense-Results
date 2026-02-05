@@ -1,0 +1,73 @@
+{
+    "CatBoost_Params": {
+        "iterations": 1639,
+        "depth": 5,
+        "learning_rate": 0.057061162457315656,
+        "l2_leaf_reg": 4.36339422369523,
+        "random_strength": 5.6516654914542475,
+        "bagging_temperature": 0.629472777841831,
+        "border_count": 134,
+        "loss_function": "Focal:focal_alpha=0.2299751526039452;focal_gamma=1.0203363758698805",
+        "eval_metric": "AUC",
+        "random_state": 42,
+        "verbose": false,
+        "thread_count": -1
+    },
+    "XGBoost_Params": {
+        "n_estimators": 1373,
+        "max_depth": 9,
+        "learning_rate": 0.04378502517228507,
+        "subsample": 0.8707692268293868,
+        "colsample_bytree": 0.9461656411860236,
+        "gamma": 1.808880015403017,
+        "min_child_weight": 8,
+        "reg_alpha": 0.034277828625524934,
+        "reg_lambda": 0.04312301682835628,
+        "max_delta_step": 5.111988343960996,
+        "scale_pos_weight": 9.056363506925491,
+        "objective": "binary:logistic",
+        "eval_metric": "auc",
+        "random_state": 42,
+        "n_jobs": -1,
+        "use_label_encoder": false
+    },
+    "LightGBM_Params": {
+        "boosting_type": "goss",
+        "n_estimators": 1638,
+        "num_leaves": 121,
+        "learning_rate": 0.0346415969250411,
+        "max_depth": 9,
+        "min_child_samples": 46,
+        "colsample_bytree": 0.7734623781295293,
+        "reg_alpha": 0.0015302829672363552,
+        "reg_lambda": 3.401077014718039,
+        "top_rate": 0.27473348139898585,
+        "other_rate": 0.19723918289590678,
+        "is_unbalance": true,
+        "objective": "binary",
+        "metric": "auc",
+        "random_state": 42,
+        "n_jobs": -1,
+        "verbosity": -1
+    },
+    "RandomForest_Params": {
+        "n_estimators": 840,
+        "max_depth": 22,
+        "min_samples_split": 10,
+        "min_samples_leaf": 6,
+        "max_features": 0.5,
+        "class_weight": "balanced_subsample",
+        "max_samples": 0.5457336390729762,
+        "min_impurity_decrease": 0.0010876392695724612,
+        "ccp_alpha": 0.0039255396400376735,
+        "bootstrap": true,
+        "random_state": 42,
+        "n_jobs": -1
+    },
+    "Ensemble_Weights": {
+        "Cat": 0.9523809523809523,
+        "XGB": 0.0,
+        "LGBM": 0.047619047619047616,
+        "RF": 0.0
+    }
+}
