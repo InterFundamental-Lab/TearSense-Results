@@ -10,3 +10,4 @@ catboost_info/
 /run_analysis.py
 /Legacy
 /comment_remover.py
+/training.csv
