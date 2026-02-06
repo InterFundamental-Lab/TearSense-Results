@@ -1,0 +1,71 @@
+{
+    "Final_Model": {
+        "AUC": 0.7616617812036334,
+        "AUC_95CI_lower": 0.6899981583004969,
+        "AUC_95CI_upper": 0.8269556044854759,
+        "Brier": 0.09041473871605518,
+        "Brier_95CI_lower": 0.07170252221039665,
+        "Brier_95CI_upper": 0.10833497805402172,
+        "Best_Method": "xgb_meta",
+        "Optimal_Threshold": 0.18000000000000005
+    },
+    "LR_Baseline": {
+        "AUC": 0.8106611659971772,
+        "Brier": 0.17485229610278893,
+        "F1_Score": 0.3861003861003861,
+        "Sensitivity": 0.819672131147541,
+        "Specificity": 0.673289183222958,
+        "PPV": 0.25252525252525254,
+        "NPV": 0.9651898734177216,
+        "Net_Benefit": -0.12066993337212771,
+        "Calibration_Slope": 0.8821582035792785,
+        "Threshold": 0.43082252713201297
+    },
+    "TearSense_vs_LR": {
+        "AUC_Improvement": -0.04899938479354382,
+        "AUC_Improvement_Pct": -6.044373019061633,
+        "Brier_Improvement": 0.08443755738673375
+    },
+    "Individual_Assessment_Test": {
+        "CatBoost": {
+            "AUC": 0.7694785220569608,
+            "Brier": 0.0887356520105889
+        },
+        "XGBoost": {
+            "AUC": 0.779177070893497,
+            "Brier": 0.10321716196653544
+        },
+        "LightGBM": {
+            "AUC": 0.7698042195925162,
+            "Brier": 0.10495302801175069
+        },
+        "RandomForest": {
+            "AUC": 0.7684652408352332,
+            "Brier": 0.09365925254187854
+        }
+    },
+    "Self_Assessment_CV": {
+        "CatBoost": {
+            "AUC": 0.795674493840633,
+            "Brier": 0.09341587587840555
+        },
+        "XGBoost": {
+            "AUC": 0.7845325693246951,
+            "Brier": 0.127310430564753
+        },
+        "LightGBM": {
+            "AUC": 0.7668000483491786,
+            "Brier": 0.11501067640667521
+        },
+        "RandomForest": {
+            "AUC": 0.7788075024931997,
+            "Brier": 0.09981963766905196
+        }
+    },
+    "Ensemble_Weights": {
+        "CatBoost": 0.3460733890533447,
+        "XGBoost": 0.17236590385437012,
+        "LightGBM": 0.0,
+        "RandomForest": 0.48156076669692993
+    }
+}

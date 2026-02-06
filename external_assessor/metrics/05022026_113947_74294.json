@@ -1,0 +1,75 @@
+{
+    "tearsense": {
+        "model_serial": "05022026_113947_74294",
+        "holdout_n": 514,
+        "inference_verified": true,
+        "stored_AUC": 0.7642673614880757,
+        "stored_Brier": 0.08965247682621201,
+        "stored_threshold": 0.36000000000000004,
+        "AUC": 0.7642673614880757,
+        "Brier_Score": 0.08965247124433517,
+        "Calibration_Slope": 1.0545110474331263,
+        "Calibration_Intercept": 0.09252090874132753,
+        "Net_Benefit": 0.03845576321486917,
+        "Optimal_Threshold_Used": 0.16882529854774475,
+        "Youden_J_Threshold": 0.16882529854774475,
+        "F1_Score": 0.4093567251461988,
+        "Sensitivity_Recall": 0.5737704918032787,
+        "Specificity": 0.8344370860927153,
+        "PPV_Precision": 0.3181818181818182,
+        "NPV": 0.9356435643564357,
+        "Confusion_Matrix": {
+            "TP": 35,
+            "TN": 378,
+            "FP": 75,
+            "FN": 26
+        },
+        "AUC_95CI": [
+            0.6935974956942699,
+            0.8288971447515354
+        ],
+        "AUC_Text": "0.7643 (0.6936-0.8289)",
+        "Brier_Score_95CI": [
+            0.07136094737797975,
+            0.10788845755159854
+        ],
+        "Brier_Score_Text": "0.0897 (0.0714-0.1079)",
+        "F1_Score_95CI": [
+            0.3105590062111801,
+            0.5
+        ],
+        "F1_Score_Text": "0.4094 (0.3106-0.5000)",
+        "Sensitivity_Recall_95CI": [
+            0.4489619985925405,
+            0.6965178571428571
+        ],
+        "Sensitivity_Recall_Text": "0.5738 (0.4490-0.6965)",
+        "Specificity_95CI": [
+            0.8,
+            0.8659486102133162
+        ],
+        "Specificity_Text": "0.8344 (0.8000-0.8659)",
+        "PPV_Precision_95CI": [
+            0.2321085164835165,
+            0.410531015037594
+        ],
+        "PPV_Precision_Text": "0.3182 (0.2321-0.4105)",
+        "NPV_95CI": [
+            0.9118276312852724,
+            0.9585492227979274
+        ],
+        "NPV_Text": "0.9356 (0.9118-0.9585)",
+        "Net_Benefit_95CI": [
+            0.0150791435381432,
+            0.0629572554219998
+        ],
+        "Net_Benefit_Text": "0.0385 (0.0151-0.0630)",
+        "Calibration_Slope_95CI": [
+            0.7666806814097654,
+            1.3969638945283742
+        ],
+        "Calibration_Slope_Text": "1.0545 (0.7667-1.3970)"
+    },
+    "logistic_regression": "Not available (no training data)",
+    "lr_formula": null
+}

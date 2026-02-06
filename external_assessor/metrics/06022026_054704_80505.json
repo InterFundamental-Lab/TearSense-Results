@@ -1,0 +1,135 @@
+{
+    "tearsense": {
+        "model_serial": "06022026_054704_80505",
+        "holdout_n": 514,
+        "inference_verified": true,
+        "stored_AUC": 0.7656063402453588,
+        "stored_Brier": 0.08956720074975115,
+        "stored_threshold": 0.16000000000000003,
+        "AUC": 0.7656063402453588,
+        "Brier_Score": 0.08956719934940338,
+        "Calibration_Slope": 1.1128693656552378,
+        "Calibration_Intercept": 0.1695589550816265,
+        "Net_Benefit": 0.0432619485271589,
+        "Optimal_Threshold_Used": 0.15745338797569275,
+        "Youden_J_Threshold": 0.15745338797569275,
+        "F1_Score": 0.4180790960451977,
+        "Sensitivity_Recall": 0.6065573770491803,
+        "Specificity": 0.82560706401766,
+        "PPV_Precision": 0.31896551724137934,
+        "NPV": 0.9396984924623115,
+        "Confusion_Matrix": {
+            "TP": 37,
+            "TN": 374,
+            "FP": 79,
+            "FN": 24
+        },
+        "AUC_95CI": [
+            0.6974637841434032,
+            0.8333695827391853
+        ],
+        "AUC_Text": "0.7656 (0.6975-0.8334)",
+        "Brier_Score_95CI": [
+            0.07145955357700587,
+            0.10654248967766762
+        ],
+        "Brier_Score_Text": "0.0896 (0.0715-0.1065)",
+        "F1_Score_95CI": [
+            0.32,
+            0.5102207187222715
+        ],
+        "F1_Score_Text": "0.4181 (0.3200-0.5102)",
+        "Sensitivity_Recall_95CI": [
+            0.47692307692307695,
+            0.7292410714285713
+        ],
+        "Sensitivity_Recall_Text": "0.6066 (0.4769-0.7292)",
+        "Specificity_95CI": [
+            0.7905197563335148,
+            0.8601518503620273
+        ],
+        "Specificity_Text": "0.8256 (0.7905-0.8602)",
+        "PPV_Precision_95CI": [
+            0.23422515257192675,
+            0.40817657497781723
+        ],
+        "PPV_Precision_Text": "0.3190 (0.2342-0.4082)",
+        "NPV_95CI": [
+            0.9162676479600254,
+            0.9630541871921182
+        ],
+        "NPV_Text": "0.9397 (0.9163-0.9631)",
+        "Net_Benefit_95CI": [
+            0.01980417077952769,
+            0.06866476748502548
+        ],
+        "Net_Benefit_Text": "0.0433 (0.0198-0.0687)",
+        "Calibration_Slope_95CI": [
+            0.7951311507820851,
+            1.49459413303443
+        ],
+        "Calibration_Slope_Text": "1.1129 (0.7951-1.4946)"
+    },
+    "logistic_regression": {
+        "AUC": 0.8106611659971772,
+        "Brier_Score": 0.17485229610276382,
+        "F1_Score": 0.3861003861003861,
+        "Sensitivity_Recall": 0.819672131147541,
+        "Specificity": 0.673289183222958,
+        "PPV_Precision": 0.25252525252525254,
+        "NPV": 0.9651898734177216,
+        "Net_Benefit": -0.12066993337198444,
+        "Calibration_Slope": 0.8821582035795066,
+        "Calibration_Intercept": -1.9580869173520672,
+        "Threshold_Used": 0.43082252713185176,
+        "Confusion_Matrix": {
+            "TP": 50,
+            "TN": 305,
+            "FP": 148,
+            "FN": 11
+        },
+        "AUC_95CI": [
+            0.7521794662966538,
+            0.8631149614337568
+        ],
+        "Brier_Score_95CI": [
+            0.15675797066710226,
+            0.1927757104268557
+        ],
+        "F1_Score_95CI": [
+            0.309478021978022,
+            0.4545624151967435
+        ],
+        "Sensitivity_Recall_95CI": [
+            0.7212933944069432,
+            0.9111403508771929
+        ],
+        "Specificity_95CI": [
+            0.6296276469188675,
+            0.715232159296766
+        ],
+        "PPV_Precision_95CI": [
+            0.19288327256261767,
+            0.31156296186816435
+        ],
+        "NPV_95CI": [
+            0.9438819353633476,
+            0.984178463043565
+        ],
+        "Net_Benefit_95CI": [
+            -0.1623036585715232,
+            -0.07807198326133666
+        ],
+        "Calibration_Slope_95CI": [
+            0.6671257244854701,
+            1.1635364636319632
+        ]
+    },
+    "lr_formula": "z = -0.7181 + 1.1932 \u00d7 tear_characteristics_Tear_MedLat + 0.7155 \u00d7 tear_characteristics_Full_3.0\n    - 0.7025 \u00d7 Tear_Area_cm2 + 0.4783 \u00d7 Tear_AP_ML_Ratio + 0.4497 \u00d7 InsuranceType_5.0\n    + 0.3984 \u00d7 Aged + 0.3697 \u00d7 tear_characteristics_Full_nan + 0.3136 \u00d7 Gender_M + 0.3018 \u00d7 Pre-Op_ROM_Pre-Op_IR + 0.2575 \u00d7 tear_characteristics_Tear_AntPost\n    + ... (30 more terms)\n\nP(retear) = 1 / (1 + exp(-z))",
+    "comparison": {
+        "AUC_difference": -0.045054825751818406,
+        "Brier_difference": -0.08528509675336043,
+        "TearSense_better_AUC": false,
+        "TearSense_better_Brier": true
+    }
+}
