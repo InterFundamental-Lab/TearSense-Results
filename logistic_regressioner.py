@@ -111,7 +111,7 @@ def compute_all_metrics(y_true, probs, threshold):
 # DATA PREPARATION
 # ==========================================
 
-def reconstruct_data_from_csv(feature_names, cat_cols, test_size=0.2, feature_engineering=True):
+def reconstruct_data_from_csv(feature_names, cat_cols, test_size=0.2, feature_engineering=False):
     """
     Reconstruct training data from training.csv using the same logic as core.py.
     Uses random_state=42 to get the exact same train/test split.
@@ -219,24 +219,21 @@ def prepare_data_for_lr(X, cat_cols):
     - Handle missing values
     - Standardize numeric features
     """
-    X = X.copy()
-    
-    # Identify numeric and categorical columns
-    numeric_cols = [c for c in X.columns if c not in cat_cols]
-    
-    # Handle categoricals: one-hot encode
     X_encoded = X.copy()
+    
+    # Handle categoricals: Clean strictly on X_encoded
     for col in cat_cols:
         if col in X_encoded.columns:
-            # Fill missing with 'Missing' category
-            X_encoded[col] = X_encoded[col].fillna('Missing').astype(str)
+            # FIX: Modify X_encoded, not X
+            X_encoded[col] = X_encoded[col].fillna('Missing').astype(str).str.upper()
     
     # One-hot encode
     if cat_cols:
+        # Now get_dummies sees the clean, uppercased data
         X_encoded = pd.get_dummies(X_encoded, columns=[c for c in cat_cols if c in X_encoded.columns], 
                                    drop_first=True, dummy_na=False)
     
-    # Fill numeric NaN with median (will be computed on training set)
+    # Fill numeric NaN with median
     for col in X_encoded.columns:
         if X_encoded[col].dtype in ['float64', 'float32', 'int64', 'int32']:
             X_encoded[col] = X_encoded[col].fillna(X_encoded[col].median())
@@ -266,10 +263,10 @@ def align_columns(X_train, X_test):
 # ==========================================
 # FORMULA GENERATION
 # ==========================================
-
-def generate_formula(lr_model, feature_names, top_n=20):
+def generate_formula(lr_model, feature_names):
     """
-    Generate human-readable logistic regression formula.
+    Generate the full human-readable logistic regression formula 
+    including ALL terms.
     
     P(retear) = 1 / (1 + exp(-z))
     where z = intercept + β1*x1 + β2*x2 + ...
@@ -285,20 +282,21 @@ def generate_formula(lr_model, feature_names, top_n=20):
         'Odds_Ratio': np.exp(coefs)
     }).sort_values('Abs_Coefficient', ascending=False)
     
-    # Generate formula string (top N features)
+    # Start formula with intercept
     formula_parts = [f"{intercept:.4f}"]
-    for _, row in coef_df.head(top_n).iterrows():
+    
+    # Iterate through ALL rows in the dataframe (no slicing)
+    for _, row in coef_df.iterrows():
         sign = "+" if row['Coefficient'] >= 0 else "-"
+        # specific formatting for the terms
         formula_parts.append(f"{sign} {abs(row['Coefficient']):.4f} × {row['Feature']}")
     
+    # Join all parts with newlines for readability
     formula_str = "z = " + "\n    ".join(formula_parts)
-    if len(coef_df) > top_n:
-        formula_str += f"\n    + ... ({len(coef_df) - top_n} more terms)"
     
     formula_str += "\n\nP(retear) = 1 / (1 + exp(-z))"
     
     return formula_str, coef_df
-
 
 # ==========================================
 # MAIN
@@ -338,7 +336,7 @@ def main(model_path, tearsense_probs=None):
         X_train, y_train, X_test_reconstructed, y_test_reconstructed = reconstruct_data_from_csv(
             feature_names, cat_cols, 
             test_size=split_ratio, 
-            feature_engineering=feature_engineering
+            feature_engineering=False
         )
         
         if X_train is None:
@@ -445,7 +443,7 @@ def main(model_path, tearsense_probs=None):
     # ─────────────────────────────────────────
     print("\n[INFO] Generating formula...")
     
-    formula_str, coef_df = generate_formula(lr_model, list(X_train_enc.columns), top_n=15)
+    formula_str, coef_df = generate_formula(lr_model, list(X_train_enc.columns))
     lr_metrics['formula'] = formula_str
     
     # Save coefficients
