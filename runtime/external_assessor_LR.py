@@ -64,35 +64,58 @@ def calculate_net_benefit (y_true ,y_prob ,thresholds ):
 
 
 
-def prepare_data_for_lr (X ,cat_cols ):
-    """
-    Standard preprocessing for Logistic Regression:
-    - Imputes NaNs
-    - One-Hot Encodes Categoricals
-    - Standard Scales Numerics
-    """
-    X =X .copy ()
-
-
+def _one_hot_encode (X ,cat_cols ):
+    """One-Hot Encode categorical columns."""
     X_encoded =X .copy ()
     for col in cat_cols :
         if col in X_encoded .columns :
-
             X_encoded [col ]=X_encoded [col ].astype (str )
-
             dummies =pd .get_dummies (X_encoded [col ],prefix =col ,drop_first =True )
             X_encoded =pd .concat ([X_encoded ,dummies ],axis =1 )
             X_encoded .drop (columns =[col ],inplace =True )
+    return X_encoded 
 
+
+def fit_prepare_data_for_lr (X ,cat_cols ):
+    """
+    FIT preprocessing on TRAINING data for Logistic Regression:
+    - One-Hot Encodes Categoricals
+    - Fits & transforms Imputer (median)
+    - Fits & transforms StandardScaler
+    Returns scaled DataFrame, feature names, fitted imputer, fitted scaler.
+    """
+    X =X .copy ()
+    X_encoded =_one_hot_encode (X ,cat_cols )
 
     imputer =SimpleImputer (strategy ='median')
     X_imputed =pd .DataFrame (imputer .fit_transform (X_encoded ),columns =X_encoded .columns )
 
-
     scaler =StandardScaler ()
     X_scaled =pd .DataFrame (scaler .fit_transform (X_imputed ),columns =X_encoded .columns )
 
-    return X_scaled ,X_encoded .columns 
+    return X_scaled ,X_encoded .columns ,imputer ,scaler 
+
+
+def transform_data_for_lr (X ,cat_cols ,train_columns ,imputer ,scaler ):
+    """
+    TRANSFORM test data using ALREADY-FITTED imputer and scaler.
+    - One-Hot Encodes Categoricals
+    - Imputes using pre-fitted imputer (train statistics)
+    - Scales using pre-fitted scaler (train statistics)
+    """
+    X =X .copy ()
+    X_encoded =_one_hot_encode (X ,cat_cols )
+
+    # Align columns: add missing, drop extra
+    missing_cols =set (train_columns )-set (X_encoded .columns )
+    for c in missing_cols :
+        X_encoded [c ]=0 
+    X_encoded =X_encoded [train_columns ]
+
+    X_imputed =pd .DataFrame (imputer .transform (X_encoded ),columns =train_columns )
+    X_scaled =pd .DataFrame (scaler .transform (X_imputed ),columns =train_columns )
+
+    return X_scaled 
 
 
 
@@ -173,17 +196,17 @@ def main (model_path ):
 
 
     print ("[1/5] Preprocessing data for Logistic Regression...")
-    X_train_lr ,feature_names =prepare_data_for_lr (X_train_raw ,cat_cols )
-    X_test_lr ,_ =prepare_data_for_lr (X_test_raw ,cat_cols )
-
-
-    missing_cols =set (X_train_lr .columns )-set (X_test_lr .columns )
-    for c in missing_cols :X_test_lr [c ]=0 
-    X_test_lr =X_test_lr [X_train_lr .columns ]
+    X_train_lr ,feature_names ,imputer ,scaler =fit_prepare_data_for_lr (X_train_raw ,cat_cols )
+    X_test_lr =transform_data_for_lr (X_test_raw ,cat_cols ,feature_names ,imputer ,scaler )
 
 
     print ("[2/5] Training Logistic Regression Baseline...")
-    lr =LogisticRegression (class_weight ='balanced',max_iter =2000 ,random_state =42 )
+    # NOTE: Do NOT use class_weight='balanced' for a baseline comparison.
+    # 'balanced' upweights the minority class (~4x at ~13% prevalence),
+    # which shifts the intercept and inflates AUC (better ranking of positives)
+    # but destroys calibration (Brier). The ensemble uses post-hoc beta
+    # calibration — using 'balanced' here creates an unfair/misleading comparison.
+    lr =LogisticRegression (max_iter =2000 ,random_state =42 )
     lr .fit (X_train_lr ,y_train )
     lr_probs =lr .predict_proba (X_test_lr )[:,1 ]
 
@@ -230,6 +253,22 @@ def main (model_path ):
     tn ,fp ,fn ,tp =confusion_matrix (y_test ,preds ).ravel ()
     sens =tp /(tp +fn )
     spec =tn /(tn +fp )
+    ppv =tp /(tp +fp ) if (tp +fp )>0 else 0.0 
+    npv =tn /(tn +fn ) if (tn +fn )>0 else 0.0 
+
+    # Calibration slope (logistic regression of y_test on logit(lr_probs))
+    from sklearn .linear_model import LogisticRegression as _LR 
+    _valid_mask =(lr_probs >0 )&(lr_probs <1 )
+    if _valid_mask .sum ()>10 :
+        _logit_probs =np .log (lr_probs [_valid_mask ]/(1 -lr_probs [_valid_mask ]))
+        _cal_lr =_LR (penalty =None ,max_iter =2000 )
+        _cal_lr .fit (_logit_probs .reshape (-1 ,1 ),y_test [_valid_mask ])
+        cal_slope =_cal_lr .coef_ [0 ][0 ]
+    else :
+        cal_slope =float ('nan')
+
+    # Net benefit at optimal threshold
+    nb_at_thresh =calculate_net_benefit (y_test ,lr_probs ,[best_thresh ])[0 ]
 
 
     coefs =lr .coef_ [0 ]
@@ -264,13 +303,24 @@ def main (model_path ):
     "AUC":(auc ,lambda y ,p :roc_auc_score (y ,p ),lr_probs ),
     "Brier Score":(brier ,lambda y ,p :brier_score_loss (y ,p ),lr_probs ),
     "F1 Score":(f1 ,lambda y ,p :f1_score (y ,(p >=best_thresh ).astype (int )),lr_probs ),
-    "Sensitivity":(sens ,lambda y ,p :confusion_matrix (y ,(p >=best_thresh ).astype (int )).ravel ()[3 ]/np .sum (y ==1 ),lr_probs ),
-    "Specificity":(spec ,lambda y ,p :confusion_matrix (y ,(p >=best_thresh ).astype (int )).ravel ()[0 ]/np .sum (y ==0 ),lr_probs )
+    "Sensitivity":(sens ,lambda y ,p :confusion_matrix (y ,(p >=best_thresh ).astype (int )).ravel ()[3 ]/max (np .sum (y ==1 ),1 ),lr_probs ),
+    "Specificity":(spec ,lambda y ,p :confusion_matrix (y ,(p >=best_thresh ).astype (int )).ravel ()[0 ]/max (np .sum (y ==0 ),1 ),lr_probs ),
+    "PPV":(ppv ,lambda y ,p :(lambda cm :cm [1 ][1 ]/max (cm [1 ][1 ]+cm [0 ][1 ],1 ))(confusion_matrix (y ,(p >=best_thresh ).astype (int ))),lr_probs ),
+    "NPV":(npv ,lambda y ,p :(lambda cm :cm [0 ][0 ]/max (cm [0 ][0 ]+cm [1 ][0 ],1 ))(confusion_matrix (y ,(p >=best_thresh ).astype (int ))),lr_probs ),
+    }
+
+    # Metrics without bootstrap CI
+    non_boot_metrics ={
+    "Cal. Slope":cal_slope ,
+    "Net Benefit":nb_at_thresh ,
     }
 
     for name ,(val ,func ,probs )in metrics_to_report .items ():
         low ,high =bootstrap_ci (y_test ,probs ,func )
         print (f"{name:<20} | {val:.4f}     | ({low:.4f}, {high:.4f})")
+
+    for name ,val in non_boot_metrics .items ():
+        print (f"{name:<20} | {val:.4f}     | --")
 
     print ("="*80 )
     print ("\nMATHEMATICAL FORMULA")
@@ -293,7 +343,7 @@ def main (model_path ):
     coef_df .to_csv (os .path .join (output_dir ,"lr_coefficients.csv"),index =False )
 
     summary ={
-    "metrics":{k :v [0 ]for k ,v in metrics_to_report .items ()},
+    "metrics":{**{k :v [0 ]for k ,v in metrics_to_report .items ()},**non_boot_metrics },
     "formula":formula_str ,
     "threshold":best_thresh 
     }

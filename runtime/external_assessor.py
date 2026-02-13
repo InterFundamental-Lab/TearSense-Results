@@ -194,8 +194,31 @@ def bootstrap_metrics (y_true ,y_probs ,threshold ,n_bootstraps =1000 ,seed =42 
 
 
 
-def prepare_data_for_lr (X ,cat_cols ):
-    """Prepare data for Logistic Regression with one-hot encoding."""
+def prepare_data_for_lr_fit (X ,cat_cols ):
+    """Prepare TRAINING data for LR. Returns encoded data + train medians."""
+    X =X .copy ()
+
+    for col in cat_cols :
+        if col in X .columns :
+            X [col ]=X [col ].fillna ('Missing').astype (str )
+
+    if cat_cols :
+        existing_cats =[c for c in cat_cols if c in X .columns ]
+        if existing_cats :
+            X =pd .get_dummies (X ,columns =existing_cats ,drop_first =True ,dummy_na =False )
+
+    train_medians ={}
+    for col in X .columns :
+        if X [col ].dtype in ['float64','float32','int64','int32']:
+            med =X [col ].median ()
+            train_medians [col ]=med 
+            X [col ]=X [col ].fillna (med )
+
+    return X ,train_medians 
+
+
+def prepare_data_for_lr_transform (X ,cat_cols ,train_medians ):
+    """Prepare TEST data for LR using TRAIN medians (no leak)."""
     X =X .copy ()
 
     for col in cat_cols :
@@ -209,7 +232,8 @@ def prepare_data_for_lr (X ,cat_cols ):
 
     for col in X .columns :
         if X [col ].dtype in ['float64','float32','int64','int32']:
-            X [col ]=X [col ].fillna (X [col ].median ())
+            med =train_medians .get (col ,0.0 )
+            X [col ]=X [col ].fillna (med )
 
     return X 
 
@@ -233,8 +257,8 @@ def train_lr_baseline (X_train ,y_train ,X_test ,cat_cols ,feature_names ):
     X_train_subset =X_train [feature_names ].copy ()
     X_test_subset =X_test [feature_names ].copy ()
 
-    X_train_enc =prepare_data_for_lr (X_train_subset ,cat_cols )
-    X_test_enc =prepare_data_for_lr (X_test_subset ,cat_cols )
+    X_train_enc ,train_medians =prepare_data_for_lr_fit (X_train_subset ,cat_cols )
+    X_test_enc =prepare_data_for_lr_transform (X_test_subset ,cat_cols ,train_medians )
 
     X_train_enc ,X_test_enc =align_columns (X_train_enc ,X_test_enc )
 
@@ -242,13 +266,15 @@ def train_lr_baseline (X_train ,y_train ,X_test ,cat_cols ,feature_names ):
     X_train_scaled =scaler .fit_transform (X_train_enc )
     X_test_scaled =scaler .transform (X_test_enc )
 
+    # NOTE: Do NOT use class_weight='balanced' — it inflates AUC while
+    # destroying calibration (Brier). The ensemble uses post-hoc beta
+    # calibration; using 'balanced' here creates an unfair comparison.
     lr_model =LogisticRegression (
     penalty ='l2',
     C =1.0 ,
     solver ='lbfgs',
     max_iter =1000 ,
-    random_state =42 ,
-    class_weight ='balanced'
+    random_state =42 
     )
     lr_model .fit (X_train_scaled ,y_train )
 
@@ -471,6 +497,65 @@ def main (model_path ):
             algo_preds +=preds 
         base_preds [algo ]=algo_preds /n_folds 
 
+
+    # ── LAYER 1: Individual Base Model Evaluation ──
+    algo_display ={'cat':'CatBoost','xgb':'XGBoost','lgbm':'LightGBM','rf':'RandomForest'}
+    individual_model_metrics ={}
+
+    print (f"\n{'='*90}")
+    print ("LAYER 1: INDIVIDUAL BASE MODEL EVALUATION (Holdout Test Set, Fold-Averaged)")
+    print (f"{'='*90}")
+    print (f"\n{'Model':<15} {'AUROC':>8} {'Cal.Slope':>10} {'Brier':>8} {'NetBen':>8} {'Sens':>8} {'Spec':>8} {'PPV':>8} {'NPV':>8} {'F1':>8}")
+    print ("-"*90 )
+
+    for algo_key ,display_name in algo_display .items ():
+        probs_i =base_preds [algo_key ]
+        thresh_i =find_optimal_threshold_youden (y_test ,probs_i )
+        preds_i =(probs_i >=thresh_i ).astype (int )
+        tn_i ,fp_i ,fn_i ,tp_i =confusion_matrix (y_test ,preds_i ).ravel ()
+
+        auc_i =roc_auc_score (y_test ,probs_i )
+        brier_i =brier_score_loss (y_test ,probs_i )
+        cal_slope_i ,cal_int_i =calculate_calibration_slope (y_test ,probs_i )
+        nb_i =calculate_single_net_benefit (y_test ,probs_i ,thresh_i )
+        sens_i =float (tp_i /(tp_i +fn_i ))if (tp_i +fn_i )>0 else 0.0 
+        spec_i =float (tn_i /(tn_i +fp_i ))if (tn_i +fp_i )>0 else 0.0 
+        ppv_i =float (tp_i /(tp_i +fp_i ))if (tp_i +fp_i )>0 else 0.0 
+        npv_i =float (tn_i /(tn_i +fn_i ))if (tn_i +fn_i )>0 else 0.0 
+        f1_i =float (f1_score (y_test ,preds_i ,zero_division =0 ))
+
+        individual_model_metrics [display_name ]={
+        "AUROC":auc_i ,
+        "Calibration_Slope":cal_slope_i ,
+        "Brier":brier_i ,
+        "Net_Benefit":nb_i ,
+        "Sensitivity":sens_i ,
+        "Specificity":spec_i ,
+        "PPV":ppv_i ,
+        "NPV":npv_i ,
+        "F1":f1_i ,
+        "Threshold_Used":float (thresh_i )
+        }
+
+        print (f"{display_name:<15} {auc_i:>8.4f} {cal_slope_i:>10.4f} {brier_i:>8.4f} {nb_i:>8.4f} {sens_i:>8.4f} {spec_i:>8.4f} {ppv_i:>8.4f} {npv_i:>8.4f} {f1_i:>8.4f}")
+
+    print (f"{'='*90}")
+
+    # Save individual model metrics to separate JSON + CSV
+    indiv_json_path =os .path .join (output_dir ,f"individual_model_metrics_{serial_number}.json")
+    with open (indiv_json_path ,'w')as f :
+        json .dump (individual_model_metrics ,f ,indent =4 ,cls =NumpyEncoder )
+    print (f"[EXPORT] Individual model metrics saved to {indiv_json_path}")
+
+    indiv_csv_rows =[]
+    for name ,m in individual_model_metrics .items ():
+        row ={'Model':name }
+        row .update (m )
+        indiv_csv_rows .append (row )
+    indiv_csv_path =os .path .join (output_dir ,f"individual_model_metrics_{serial_number}.csv")
+    pd .DataFrame (indiv_csv_rows ).to_csv (indiv_csv_path ,index =False )
+
+
     is_weighted_avg =bundle .get ('is_weighted_avg',False )
 
     if is_weighted_avg :
@@ -578,6 +663,7 @@ def main (model_path ):
 
     combined_metrics ={
     "tearsense":ts_metrics ,
+    "individual_base_models":individual_model_metrics ,
     "logistic_regression":lr_metrics if lr_metrics else "Not available (no training data)",
     "lr_formula":lr_formula if lr_formula else None ,
     }
@@ -732,6 +818,4 @@ def main (model_path ):
     print (f"\n[EXPORT] Plots saved to {output_dir}/")
     print ("[DONE]")
 
-    return combined_metrics ,ts_probs ,lr_probs 
-
-
+    return combined_metrics ,ts_probs ,lr_probs

@@ -168,8 +168,8 @@ def compute_all_metrics (y_true ,probs ,threshold ):
 
 
 
-def prepare_data_for_lr (X ,cat_cols ):
-    """Prepare data for Logistic Regression with one-hot encoding."""
+def prepare_data_for_lr_fit (X ,cat_cols ):
+    """Prepare TRAINING data for LR. Returns encoded data + train medians."""
     X =X .copy ()
 
     for col in cat_cols :
@@ -181,10 +181,33 @@ def prepare_data_for_lr (X ,cat_cols ):
         if existing_cats :
             X =pd .get_dummies (X ,columns =existing_cats ,drop_first =True ,dummy_na =False )
 
+    train_medians ={}
+    for col in X .columns :
+        if X [col ].dtype in ['float64','float32','int64','int32']:
+            med =X [col ].median ()
+            train_medians [col ]=med 
+            X [col ]=X [col ].fillna (med )
+
+    return X ,train_medians 
+
+
+def prepare_data_for_lr_transform (X ,cat_cols ,train_medians ):
+    """Prepare TEST data for LR using TRAIN medians (no leak)."""
+    X =X .copy ()
+
+    for col in cat_cols :
+        if col in X .columns :
+            X [col ]=X [col ].fillna ('Missing').astype (str )
+
+    if cat_cols :
+        existing_cats =[c for c in cat_cols if c in X .columns ]
+        if existing_cats :
+            X =pd .get_dummies (X ,columns =existing_cats ,drop_first =True ,dummy_na =False )
 
     for col in X .columns :
         if X [col ].dtype in ['float64','float32','int64','int32']:
-            X [col ]=X [col ].fillna (X [col ].median ())
+            med =train_medians .get (col ,0.0 )
+            X [col ]=X [col ].fillna (med )
 
     return X 
 
@@ -209,8 +232,8 @@ def train_lr_baseline (X_train ,y_train ,X_test ,cat_cols ,feature_names ):
     X_train_subset =X_train [feature_names ].copy ()
     X_test_subset =X_test [feature_names ].copy ()
 
-    X_train_enc =prepare_data_for_lr (X_train_subset ,cat_cols )
-    X_test_enc =prepare_data_for_lr (X_test_subset ,cat_cols )
+    X_train_enc ,train_medians =prepare_data_for_lr_fit (X_train_subset ,cat_cols )
+    X_test_enc =prepare_data_for_lr_transform (X_test_subset ,cat_cols ,train_medians )
 
     X_train_enc ,X_test_enc =align_columns (X_train_enc ,X_test_enc )
 
@@ -225,8 +248,7 @@ def train_lr_baseline (X_train ,y_train ,X_test ,cat_cols ,feature_names ):
     C =1.0 ,
     solver ='lbfgs',
     max_iter =1000 ,
-    random_state =42 ,
-    class_weight ='balanced'
+    random_state =42 
     )
     lr_model .fit (X_train_scaled ,y_train )
 
@@ -416,7 +438,7 @@ def evaluate_layers (model_path ,output_dir =None ):
         lr_metrics ['n_features']=len (lr_coef_df )
         all_results ["layer_0_lr_baseline"]=lr_metrics 
 
-        print (f"\n>> Logistic Regression (L2, class_weight='balanced')")
+        print (f"\n>> Logistic Regression (L2, default class_weight)")
         print (f"   Threshold (LR's Youden): {lr_threshold:.4f}")
         print (f"   AUC              {lr_metrics['AUC']:.4f}")
         print (f"   Brier            {lr_metrics['Brier']:.4f}")
