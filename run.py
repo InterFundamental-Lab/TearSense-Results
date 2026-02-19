@@ -19,8 +19,7 @@ import pandas as pd
 
 do_shap = False 
 
-# Import runtime modules
-import runtime.external_assessor_LR as external_assessor_LR
+
 import runtime.external_assessor_shap as external_assessor_shap
 import runtime.external_assessor as external_assessor
 import runtime.find_best as find_best

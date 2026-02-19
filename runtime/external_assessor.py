@@ -1,41 +1,58 @@
-import joblib 
-import os 
-import json 
-import pandas as pd 
-import numpy as np 
-import matplotlib.pyplot as plt 
-from itertools import combinations 
+"""
+TearSense External Assessor
+═══════════════════════════════════════════════════════════════════════════
+
+Runs full TearSense inference pipeline on holdout test data, evaluates
+individual base models, and compares against Logistic Regression baseline.
+
+LR training is handled by logistic_regressioner.py (single source of truth).
+
+Usage:
+    python external_assessor.py <path_to_model_bundle.pkl>
+"""
+
+import joblib
+import os
+import json
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
 from sklearn.metrics import (
     roc_auc_score, brier_score_loss, confusion_matrix,
     roc_curve, f1_score, RocCurveDisplay
 )
-from sklearn.calibration import CalibrationDisplay, calibration_curve 
-from sklearn.linear_model import LogisticRegression 
-from sklearn.preprocessing import StandardScaler 
+from sklearn.calibration import CalibrationDisplay, calibration_curve
 
-class NumpyEncoder(json.JSONEncoder):
-    def default(self, obj):
-        if isinstance(obj, (np.int_, np.intc, np.intp, np.int8,
-                            np.int16, np.int32, np.int64, np.uint8,
-                            np.uint16, np.uint32, np.uint64)):
-            return int(obj)
-        elif isinstance(obj, (np.float64, np.float16, np.float32, np.float64)):
-            return float(obj)
-        elif isinstance(obj, (np.bool_,)):
-            return bool(obj)
-        elif isinstance(obj, np.ndarray):
-            return obj.tolist()
-        return super().default(obj)
+# ═══════════════════════════════════════════════════════════════════════════════
+# IMPORT LR TRAINING + SHARED UTILITIES FROM SINGLE SOURCE OF TRUTH
+# ═══════════════════════════════════════════════════════════════════════════════
+from logistic_regressioner import (
+    train_lr,
+    compute_all_metrics,
+    find_youden_threshold,
+    calculate_net_benefit,
+    calculate_net_benefit_curve,
+    get_calibration_slope_intercept,
+    bootstrap_metrics,
+    generate_formula,
+    NumpyEncoder,
+)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TEARSENSE-SPECIFIC HELPERS
+# ══════════════════════════════════════════════════════════════════════════════
 
 def load_model_bundle(path):
     print(f"[INFO] Loading model from {path}...")
     try:
         data = joblib.load(path)
         print(f"[INFO] Model loaded successfully. Version: {data.get('export_version', 'unknown')}")
-        return data 
+        return data
     except Exception as e:
         print(f"[ERROR] Failed to load model: {e}")
         exit(1)
+
 
 def prepare_encoded_data(X, cat_cols):
     """Replicates encoding logic for Tree Models (XGB/LGBM/RF)."""
@@ -43,10 +60,11 @@ def prepare_encoded_data(X, cat_cols):
     for col in cat_cols:
         if col in X_enc.columns:
             if isinstance(X_enc[col].dtype, pd.CategoricalDtype):
-                X_enc[col] = X_enc[col].cat.codes 
+                X_enc[col] = X_enc[col].cat.codes
             else:
-                X_enc[col] = X_enc[col].astype('category').cat.codes 
+                X_enc[col] = X_enc[col].astype('category').cat.codes
     return X_enc.fillna(-999)
+
 
 def generate_meta_features(base_preds, use_interactions=True, use_rank=False):
     """Reconstructs meta-features. MUST match defecator.meta_features exactly."""
@@ -73,250 +91,64 @@ def generate_meta_features(base_preds, use_interactions=True, use_rank=False):
             np.max(all_preds, axis=0) - np.min(all_preds, axis=0),
         ])
 
-    return X_meta 
+    return X_meta
 
-def calculate_net_benefit_curve(y_true, y_probs, thresholds):
-    """Calculates Net Benefit curve for DCA plotting."""
-    net_benefits = []
-    n = len(y_true)
-    for thresh in thresholds:
-        if thresh >= 1.0: thresh = 0.999 
-        preds = (y_probs >= thresh).astype(int)
-        tp = np.sum((preds == 1) & (y_true == 1))
-        fp = np.sum((preds == 1) & (y_true == 0))
-        nb = (tp / n) - (fp / n) * (thresh / (1 - thresh))
-        net_benefits.append(nb)
 
-    return net_benefits 
+# ══════════════════════════════════════════════════════════════════════════════
+# INDIVIDUAL BASE MODEL METRICS (kept here — not LR-related)
+# ══════════════════════════════════════════════════════════════════════════════
 
-def calculate_single_net_benefit(y_true, y_probs, threshold):
-    """Calculates a scalar Net Benefit at a specific threshold."""
-    n = len(y_true)
-    if threshold >= 1.0: threshold = 0.999 
-    preds = (y_probs >= threshold).astype(int)
-    tp = np.sum((preds == 1) & (y_true == 1))
-    fp = np.sum((preds == 1) & (y_true == 0))
-    return (tp / n) - (fp / n) * (threshold / (1 - threshold))
+def compute_individual_model_metrics(y_test, base_preds):
+    """Evaluate each base model (CatBoost, XGBoost, LightGBM, RF) individually."""
+    algo_display = {'cat': 'CatBoost', 'xgb': 'XGBoost', 'lgbm': 'LightGBM', 'rf': 'RandomForest'}
+    individual_model_metrics = {}
 
-def find_optimal_threshold_youden(y_true, y_probs):
-    """Find threshold that maximizes Youden's J."""
-    fpr, tpr, thresholds = roc_curve(y_true, y_probs)
-    j_scores = tpr - fpr
-    best_idx = np.argmax(j_scores)
-    tpr = tpr[best_idx]
-    fpr = fpr[best_idx]
-    print(f'fpr {fpr}, tpr {tpr}')
-    return thresholds[best_idx]
+    print(f"\n{'='*105}")
+    print("LAYER 1: INDIVIDUAL BASE MODEL EVALUATION (Holdout Test Set, Fold-Averaged)")
+    print(f"{'='*105}")
+    print(f"{'Model':<15} {'AUROC':>8} {'Cal.Slope':>10} {'Cal.Int':>10} {'Brier':>8} {'NetBen':>8} {'Sens':>8} {'Spec':>8} {'PPV':>8} {'NPV':>8}")
+    print("-" * 105)
 
-def find_optimal_threshold_youden_ts(y_true, y_probs):
-    """Find threshold that maximizes Youden's J."""
-    fpr, tpr, thresholds = roc_curve(y_true, y_probs)
-    j_scores = tpr - fpr
-    best_idx = np.argmax(j_scores)
-    tpr = tpr[best_idx]
-    fpr = fpr[best_idx]
-    print(f'fpr ts {fpr}, tpr ts {tpr}')
-    return thresholds[best_idx]
+    for algo_key, display_name in algo_display.items():
+        probs_i = base_preds[algo_key]
+        thresh_i = find_youden_threshold(y_test, probs_i)
+        preds_i = (probs_i >= thresh_i).astype(int)
+        tn_i, fp_i, fn_i, tp_i = confusion_matrix(y_test, preds_i).ravel()
 
-def calculate_calibration_slope(y_true, y_probs):
-    """Calculates Calibration Slope and Intercept via logistic regression on log-odds."""
-    eps = 1e-15 
-    y_probs_clipped = np.clip(y_probs, eps, 1 - eps)
-    log_odds = np.log(y_probs_clipped / (1 - y_probs_clipped))
+        auc_i = roc_auc_score(y_test, probs_i)
+        brier_i = brier_score_loss(y_test, probs_i)
+        cal_slope_i, cal_int_i = get_calibration_slope_intercept(y_test, probs_i)
+        nb_i = calculate_net_benefit(y_test, probs_i, thresh_i)
+        sens_i = float(tp_i / (tp_i + fn_i)) if (tp_i + fn_i) > 0 else 0.0
+        spec_i = float(tn_i / (tn_i + fp_i)) if (tn_i + fp_i) > 0 else 0.0
+        ppv_i = float(tp_i / (tp_i + fp_i)) if (tp_i + fp_i) > 0 else 0.0
+        npv_i = float(tn_i / (tn_i + fn_i)) if (tn_i + fn_i) > 0 else 0.0
+        f1_i = float(f1_score(y_test, preds_i, zero_division=0))
 
-    lr = LogisticRegression(C=1e9, solver='lbfgs', max_iter=1000)
-    lr.fit(log_odds.reshape(-1, 1), y_true)
+        individual_model_metrics[display_name] = {
+            "AUROC": auc_i,
+            "Calibration_Slope": cal_slope_i,
+            "Calibration_Intercept": cal_int_i,
+            "Brier": brier_i,
+            "Net_Benefit": nb_i,
+            "Sensitivity": sens_i,
+            "Specificity": spec_i,
+            "PPV": ppv_i,
+            "NPV": npv_i,
+            "F1": f1_i,
+            "Threshold_Used": float(thresh_i)
+        }
 
-    return float(lr.coef_[0][0]), float(lr.intercept_[0])
+        print(f"{display_name:<15} {auc_i:>8.4f} {cal_slope_i:>10.4f} {cal_int_i:>10.4f} {brier_i:>8.4f} {nb_i:>8.4f} {sens_i:>8.4f} {spec_i:>8.4f} {ppv_i:>8.4f} {npv_i:>8.4f}")
 
-def bootstrap_metrics(y_true, y_probs, threshold, n_bootstraps=1000, seed=42):
-    """Bootstrap 95% Confidence Intervals for all metrics."""
-    rng = np.random.RandomState(seed)
+    print(f"{'='*105}")
 
-    y_true = np.array(y_true)
-    y_probs = np.array(y_probs)
-    indices = np.arange(len(y_true))
+    return individual_model_metrics
 
-    boot_stats = {k: [] for k in [
-        "AUC", "Brier_Score", "F1_Score", "Sensitivity_Recall",
-        "Specificity", "PPV_Precision", "NPV", "Net_Benefit", "Calibration_Slope"
-    ]}
 
-    for _ in range(n_bootstraps):
-        idx = rng.choice(indices, size=len(indices), replace=True)
-        y_true_boot = y_true[idx]
-        y_probs_boot = y_probs[idx]
-
-        if len(np.unique(y_true_boot)) < 2:
-            continue 
-
-        preds_boot = (y_probs_boot >= threshold).astype(int)
-        tn, fp, fn, tp = confusion_matrix(y_true_boot, preds_boot).ravel()
-
-        boot_stats["AUC"].append(roc_auc_score(y_true_boot, y_probs_boot))
-        boot_stats["Brier_Score"].append(brier_score_loss(y_true_boot, y_probs_boot))
-        boot_stats["F1_Score"].append(f1_score(y_true_boot, preds_boot, zero_division=0))
-
-        sens = tp / (tp + fn) if (tp + fn) > 0 else 0.0 
-        spec = tn / (tn + fp) if (tn + fp) > 0 else 0.0 
-        ppv = tp / (tp + fp) if (tp + fp) > 0 else 0.0 
-        npv = tn / (tn + fn) if (tn + fn) > 0 else 0.0 
-
-        boot_stats["Sensitivity_Recall"].append(sens)
-        boot_stats["Specificity"].append(spec)
-        boot_stats["PPV_Precision"].append(ppv)
-        boot_stats["NPV"].append(npv)
-
-        boot_stats["Net_Benefit"].append(
-            calculate_single_net_benefit(y_true_boot, y_probs_boot, threshold)
-        )
-
-        try:
-            slope, _ = calculate_calibration_slope(y_true_boot, y_probs_boot)
-            boot_stats["Calibration_Slope"].append(slope)
-        except:
-            pass 
-
-    ci_results = {}
-    for key, values in boot_stats.items():
-        if len(values) > 0:
-            ci_results[key] = (np.percentile(values, 2.5), np.percentile(values, 97.5))
-        else:
-            ci_results[key] = (0.0, 0.0)
-
-    return ci_results 
-
-def prepare_data_for_lr_fit(X, cat_cols):
-    """Prepare TRAINING data for LR. Returns encoded data + train medians."""
-    X = X.copy()
-
-    for col in cat_cols:
-        if col in X.columns:
-            X[col] = X[col].fillna('Missing').astype(str)
-
-    if cat_cols:
-        existing_cats = [c for c in cat_cols if c in X.columns]
-        if existing_cats:
-            X = pd.get_dummies(X, columns=existing_cats, drop_first=True, dummy_na=False)
-
-    train_medians = {}
-    for col in X.columns:
-        if X[col].dtype in ['float64', 'float32', 'int64', 'int32']:
-            med = X[col].median()
-            train_medians[col] = med 
-            X[col] = X[col].fillna(med)
-
-    return X, train_medians 
-
-def prepare_data_for_lr_transform(X, cat_cols, train_medians):
-    """Prepare TEST data for LR using TRAIN medians (no leak)."""
-    X = X.copy()
-
-    for col in cat_cols:
-        if col in X.columns:
-            X[col] = X[col].fillna('Missing').astype(str)
-
-    if cat_cols:
-        existing_cats = [c for c in cat_cols if c in X.columns]
-        if existing_cats:
-            X = pd.get_dummies(X, columns=existing_cats, drop_first=True, dummy_na=False)
-
-    for col in X.columns:
-        if X[col].dtype in ['float64', 'float32', 'int64', 'int32']:
-            med = train_medians.get(col, 0.0)
-            X[col] = X[col].fillna(med)
-
-    return X 
-
-def align_columns(X_train, X_test):
-    """Ensure train and test have same columns."""
-    all_cols = list(set(X_train.columns) | set(X_test.columns))
-
-    for col in all_cols:
-        if col not in X_train.columns:
-            X_train[col] = 0 
-        if col not in X_test.columns:
-            X_test[col] = 0 
-
-    sorted_cols = sorted(all_cols)
-    return X_train[sorted_cols], X_test[sorted_cols]
-
-def train_lr_baseline(X_train, y_train, X_test, cat_cols, feature_names):
-    """Train logistic regression baseline and return predictions."""
-    X_train_subset = X_train[feature_names].copy()
-    X_test_subset = X_test[feature_names].copy()
-
-    X_train_enc, train_medians = prepare_data_for_lr_fit(X_train_subset, cat_cols)
-    X_test_enc = prepare_data_for_lr_transform(X_test_subset, cat_cols, train_medians)
-
-    X_train_enc, X_test_enc = align_columns(X_train_enc, X_test_enc)
-
-    scaler = StandardScaler()
-    X_train_scaled = scaler.fit_transform(X_train_enc)
-    X_test_scaled = scaler.transform(X_test_enc)
-
-    lr_model = LogisticRegression(
-        penalty='l2',
-        C=1.0,
-        solver='lbfgs',
-        max_iter=1000,
-        random_state=42
-    )
-    lr_model.fit(X_train_scaled, y_train)
-
-    lr_probs = lr_model.predict_proba(X_test_scaled)[:, 1]
-
-    coefs = lr_model.coef_[0]
-    intercept = lr_model.intercept_[0]
-
-    coef_df = pd.DataFrame({
-        'Feature': list(X_train_enc.columns),
-        'Coefficient': coefs,
-        'Abs_Coefficient': np.abs(coefs),
-        'Odds_Ratio': np.exp(coefs)
-    }).sort_values('Abs_Coefficient', ascending=False)
-
-    formula_parts = [f"{intercept:.4f}"]
-    for _, row in coef_df.head(10).iterrows():
-        sign = "+" if row['Coefficient'] >= 0 else "-"
-        formula_parts.append(f"{sign} {abs(row['Coefficient']):.4f} × {row['Feature']}")
-
-    formula_str = "z = " + " ".join(formula_parts[:3])
-    if len(formula_parts) > 3:
-        formula_str += "\n    " + " ".join(formula_parts[3:6])
-    if len(formula_parts) > 6:
-        formula_str += "\n    " + " ".join(formula_parts[6:])
-    if len(coef_df) > 10:
-        formula_str += f"\n    + ... ({len(coef_df) - 10} more terms)"
-    formula_str += "\n\nP(retear) = 1 / (1 + exp(-z))"
-
-    return lr_probs, lr_model, coef_df, formula_str 
-
-def compute_lr_metrics(y_true, probs, threshold):
-    """Compute all metrics for LR."""
-    auc = roc_auc_score(y_true, probs)
-    brier = brier_score_loss(y_true, probs)
-
-    preds = (probs >= threshold).astype(int)
-    tn, fp, fn, tp = confusion_matrix(y_true, preds).ravel()
-
-    cal_slope, cal_intercept = calculate_calibration_slope(y_true, probs)
-    net_benefit = calculate_single_net_benefit(y_true, probs, threshold)
-
-    return {
-        "AUC": float(auc),
-        "Brier_Score": float(brier),
-        "F1_Score": float(f1_score(y_true, preds, zero_division=0)),
-        "Sensitivity_Recall": float(tp / (tp + fn)) if (tp + fn) > 0 else 0.0,
-        "Specificity": float(tn / (tn + fp)) if (tn + fp) > 0 else 0.0,
-        "PPV_Precision": float(tp / (tp + fp)) if (tp + fp) > 0 else 0.0,
-        "NPV": float(tn / (tn + fn)) if (tn + fn) > 0 else 0.0,
-        "Net_Benefit": float(net_benefit),
-        "Calibration_Slope": float(cal_slope),
-        "Calibration_Intercept": float(cal_intercept),
-        "Threshold_Used": float(threshold),
-        "Confusion_Matrix": {"TP": int(tp), "TN": int(tn), "FP": int(fp), "FN": int(fn)}
-    }
+# ══════════════════════════════════════════════════════════════════════════════
+# MAIN
+# ══════════════════════════════════════════════════════════════════════════════
 
 def main(model_path):
     bundle = load_model_bundle(model_path)
@@ -333,6 +165,7 @@ def main(model_path):
 
     print(f"[INFO] Output Directory: {output_dir}")
 
+    # ── EXTRACT DATA ──
     X_test_raw = bundle.get('X_test_exact')
     y_test = bundle.get('y_test_exact')
     fold_models = bundle.get('fold_models')
@@ -342,7 +175,7 @@ def main(model_path):
 
     X_train = bundle.get('X_train_all')
     y_train = bundle.get('y_train_all')
-    has_train_data = X_train is not None and y_train is not None 
+    has_train_data = X_train is not None and y_train is not None
 
     stacking_config = bundle.get('stacking_config', {})
     use_interactions = stacking_config.get('use_interactions', True)
@@ -374,7 +207,7 @@ def main(model_path):
             feature_names = list(X_test_raw.columns)
         else:
             raise ValueError("feature_names is empty and X_test_raw has no columns!")
-    
+
     if fold_models.get('xgb') and len(fold_models['xgb']) > 0:
         try:
             xgb_feature_names = fold_models['xgb'][0].get_booster().feature_names
@@ -384,12 +217,12 @@ def main(model_path):
             print(f"[DEBUG] Could not get feature names from XGBoost: {e}")
 
     print(f"\n[INFO] Running TearSense inference on {len(y_test)} patients...")
-    
+
     if not isinstance(X_test_raw, pd.DataFrame):
         X_test_raw = pd.DataFrame(X_test_raw, columns=feature_names)
     else:
         X_test_raw.columns = feature_names
-    
+
     X_test_xgb = bundle.get('X_test_xgb')
     if X_test_xgb is not None:
         if not isinstance(X_test_xgb, pd.DataFrame):
@@ -403,9 +236,10 @@ def main(model_path):
             if col in X_test_enc.columns:
                 X_test_enc[col] = X_test_enc[col].astype('category').cat.codes
         X_test_enc = X_test_enc.fillna(-999)
-    
+
     X_test_enc.columns = feature_names
-    
+
+    # ── BASE MODEL PREDICTIONS ──
     base_preds = {}
 
     for algo in ['cat', 'xgb', 'lgbm', 'rf']:
@@ -420,72 +254,30 @@ def main(model_path):
                 except ValueError as e:
                     if "feature names" not in str(e).lower():
                         raise
-                
+
                 if preds is None and algo == 'xgb':
                     try:
                         preds = model.predict_proba(X_test_enc, validate_features=False)[:, 1]
                     except (ValueError, TypeError):
                         pass
-                
+
                 if preds is None and algo == 'xgb':
                     try:
                         import xgboost as xgb
                         dmatrix = xgb.DMatrix(X_test_enc.values, feature_names=feature_names)
                         raw_preds = model.get_booster().predict(dmatrix)
                         preds = raw_preds if raw_preds.max() <= 1 else 1 / (1 + np.exp(-raw_preds))
-                    except Exception as e:
+                    except Exception:
                         pass
-                
+
                 if preds is None:
                     preds = model.predict_proba(X_test_enc.values)[:, 1]
-                    
-            algo_preds += preds 
-        base_preds[algo] = algo_preds / n_folds 
+
+            algo_preds += preds
+        base_preds[algo] = algo_preds / n_folds
 
     # ── LAYER 1: INDIVIDUAL BASE MODEL EVALUATION ──
-    algo_display = {'cat': 'CatBoost', 'xgb': 'XGBoost', 'lgbm': 'LightGBM', 'rf': 'RandomForest'}
-    individual_model_metrics = {}
-
-    print(f"\n{'='*105}")
-    print("LAYER 1: INDIVIDUAL BASE MODEL EVALUATION (Holdout Test Set, Fold-Averaged)")
-    print(f"{'='*105}")
-    # Updated Header to include Cal.Int
-    print(f"{'Model':<15} {'AUROC':>8} {'Cal.Slope':>10} {'Cal.Int':>10} {'Brier':>8} {'NetBen':>8} {'Sens':>8} {'Spec':>8} {'PPV':>8} {'NPV':>8}")
-    print("-" * 105)
-
-    for algo_key, display_name in algo_display.items():
-        probs_i = base_preds[algo_key]
-        thresh_i = find_optimal_threshold_youden(y_test, probs_i)
-        preds_i = (probs_i >= thresh_i).astype(int)
-        tn_i, fp_i, fn_i, tp_i = confusion_matrix(y_test, preds_i).ravel()
-
-        auc_i = roc_auc_score(y_test, probs_i)
-        brier_i = brier_score_loss(y_test, probs_i)
-        cal_slope_i, cal_int_i = calculate_calibration_slope(y_test, probs_i)
-        nb_i = calculate_single_net_benefit(y_test, probs_i, thresh_i)
-        sens_i = float(tp_i / (tp_i + fn_i)) if (tp_i + fn_i) > 0 else 0.0 
-        spec_i = float(tn_i / (tn_i + fp_i)) if (tn_i + fp_i) > 0 else 0.0 
-        ppv_i = float(tp_i / (tp_i + fp_i)) if (tp_i + fp_i) > 0 else 0.0 
-        npv_i = float(tn_i / (tn_i + fn_i)) if (tn_i + fn_i) > 0 else 0.0 
-        f1_i = float(f1_score(y_test, preds_i, zero_division=0))
-
-        individual_model_metrics[display_name] = {
-            "AUROC": auc_i,
-            "Calibration_Slope": cal_slope_i,
-            "Calibration_Intercept": cal_int_i,  # <--- ADDED THIS LINE
-            "Brier": brier_i,
-            "Net_Benefit": nb_i,
-            "Sensitivity": sens_i,
-            "Specificity": spec_i,
-            "PPV": ppv_i,
-            "NPV": npv_i,
-            "F1": f1_i,
-            "Threshold_Used": float(thresh_i)
-        }
-
-        print(f"{display_name:<15} {auc_i:>8.4f} {cal_slope_i:>10.4f} {cal_int_i:>10.4f} {brier_i:>8.4f} {nb_i:>8.4f} {sens_i:>8.4f} {spec_i:>8.4f} {ppv_i:>8.4f} {npv_i:>8.4f}")
-
-    print(f"{'='*105}")
+    individual_model_metrics = compute_individual_model_metrics(y_test, base_preds)
 
     indiv_json_path = os.path.join(output_dir, f"individual_model_metrics_{serial_number}.json")
     with open(indiv_json_path, 'w') as f:
@@ -500,6 +292,7 @@ def main(model_path):
     indiv_csv_path = os.path.join(output_dir, f"individual_model_metrics_{serial_number}.csv")
     pd.DataFrame(indiv_csv_rows).to_csv(indiv_csv_path, index=False)
 
+    # ── TEARSENSE COMBINED INFERENCE ──
     is_weighted_avg = bundle.get('is_weighted_avg', False)
 
     if is_weighted_avg:
@@ -516,7 +309,7 @@ def main(model_path):
         raw_final_probs = meta_model.predict_proba(X_meta)[:, 1]
 
     calibrator = bundle.get('calibrator')
-    ts_probs = calibrator.predict(raw_final_probs) if calibrator else raw_final_probs 
+    ts_probs = calibrator.predict(raw_final_probs) if calibrator else raw_final_probs
 
     computed_auc = roc_auc_score(y_test, ts_probs)
     computed_brier = brier_score_loss(y_test, ts_probs)
@@ -525,27 +318,31 @@ def main(model_path):
     print(f"  Computed AUC:   {computed_auc:.6f}  (stored: {stored_auc})")
     print(f"  Computed Brier: {computed_brier:.6f}  (stored: {stored_brier})")
 
-    auc_match = abs(computed_auc - stored_auc) < 1e-4 if stored_auc else False 
-    brier_match = abs(computed_brier - stored_brier) < 1e-4 if stored_brier else False 
+    auc_match = abs(computed_auc - stored_auc) < 1e-4 if stored_auc else False
+    brier_match = abs(computed_brier - stored_brier) < 1e-4 if stored_brier else False
 
     if auc_match and brier_match:
         print(f"  [PASS] Inference reproduces training evaluation exactly.")
     else:
         print(f"  [WARNING] Metrics don't match stored values!")
 
-    lr_probs = None 
-    lr_metrics = None 
-    lr_formula = None 
-    lr_coef_df = None 
+    # ── LOGISTIC REGRESSION BASELINE (via logistic_regressioner.py) ──
+    lr_probs = None
+    lr_metrics = None
+    lr_formula = None
+    lr_coef_df = None
 
     if has_train_data:
-        print(f"\n[INFO] Training Logistic Regression baseline...")
-        lr_probs, lr_model, lr_coef_df, lr_formula = train_lr_baseline(
-            X_train, y_train_arr, X_test_raw, cat_cols, feature_names 
-        )
+        print(f"\n[INFO] Training Logistic Regression baseline (via logistic_regressioner)...")
 
-        lr_threshold = find_optimal_threshold_youden(y_test, lr_probs)
-        lr_metrics = compute_lr_metrics(y_test, lr_probs, lr_threshold)
+        lr_result = train_lr(X_train, y_train_arr, X_test_raw, cat_cols, feature_names)
+
+        lr_probs = lr_result['probs_test']
+        lr_coef_df = lr_result['coef_df']
+        lr_formula = lr_result['formula']
+
+        lr_threshold = find_youden_threshold(y_test, lr_probs)
+        lr_metrics = compute_all_metrics(y_test, lr_probs, lr_threshold, "Logistic Regression")
 
         print("[INFO] Bootstrapping LR confidence intervals...")
         lr_cis = bootstrap_metrics(y_test, lr_probs, lr_threshold, n_bootstraps=1000)
@@ -556,11 +353,12 @@ def main(model_path):
         lr_coef_df.to_csv(coef_path, index=False)
         print(f"[EXPORT] LR coefficients saved to: {coef_path}")
 
-    youden_thresh = find_optimal_threshold_youden_ts(y_test, ts_probs)
+    # ── TEARSENSE METRICS ──
+    youden_thresh = find_youden_threshold(y_test, ts_probs)
     preds_binary = (ts_probs >= youden_thresh).astype(int)
     tn, fp, fn, tp = confusion_matrix(y_test, preds_binary).ravel()
-    cal_slope, cal_intercept = calculate_calibration_slope(y_test, ts_probs)
-    net_benefit = calculate_single_net_benefit(y_test, ts_probs, youden_thresh)
+    cal_slope, cal_intercept = get_calibration_slope_intercept(y_test, ts_probs)
+    net_benefit = calculate_net_benefit(y_test, ts_probs, youden_thresh)
 
     ts_metrics = {
         "model_serial": serial_number,
@@ -616,6 +414,7 @@ def main(model_path):
     with open(json_path_combined, 'w') as f:
         json.dump(combined_metrics, f, indent=4, cls=NumpyEncoder)
 
+    # ── PRINT REPORT ──
     print(f"\n{'='*70}")
     print(f"CLINICAL METRICS REPORT — {serial_number}")
     print(f"{'='*70}")
@@ -646,7 +445,7 @@ def main(model_path):
         ts_val = ts_metrics[ts_key]
         if lr_metrics:
             lr_val = lr_metrics[lr_key]
-            diff = ts_val - lr_val 
+            diff = ts_val - lr_val
             print(f"{ts_key:<25} | {ts_val:>15.4f} | {lr_val:>15.4f} | {diff:>+10.4f}")
         else:
             print(f"{ts_key:<25} | {ts_val:>15.4f} | {'N/A':>15} | {'N/A':>10}")
@@ -656,13 +455,14 @@ def main(model_path):
     if lr_metrics:
         print(f"\n>> TearSense vs LR Baseline:")
         if ts_metrics['AUC'] > lr_metrics['AUC']:
-            improvement = (ts_metrics['AUC'] - lr_metrics['AUC']) / lr_metrics['AUC'] * 100 
+            improvement = (ts_metrics['AUC'] - lr_metrics['AUC']) / lr_metrics['AUC'] * 100
             print(f"   ✓ TearSense AUC is {improvement:.2f}% better than LR")
         else:
             print(f"   ✗ LR AUC is better than TearSense")
 
     print(f"{'='*70}")
 
+    # ── PLOTS ──
     print("\n[INFO] Generating comparison plots...")
 
     fig, ax = plt.subplots(figsize=(8, 8))
@@ -670,14 +470,14 @@ def main(model_path):
     RocCurveDisplay.from_predictions(
         y_test, ts_probs,
         name=f"TearSense (AUC={ts_metrics['AUC']:.3f})",
-        color="darkorange", ax=ax 
+        color="darkorange", ax=ax
     )
 
     if lr_probs is not None:
         RocCurveDisplay.from_predictions(
             y_test, lr_probs,
             name=f"Logistic Regression (AUC={lr_metrics['AUC']:.3f})",
-            color="blue", ax=ax 
+            color="blue", ax=ax
         )
 
     ax.plot([0, 1], [0, 1], "k--", label="Chance (AUC = 0.5)")
@@ -735,6 +535,7 @@ def main(model_path):
     print("[DONE]")
 
     return combined_metrics, ts_probs, lr_probs
+
 
 if __name__ == "__main__":
     import sys
