@@ -137,27 +137,10 @@ def check_combined_exists(serial, assessor_dir="external_assessor"):
 
 
 def run_logistic_regressioner(model_path):
-    """
-    Run logistic_regressioner.py on the given model.
-    Tries to import and run it dynamically.
-    """
-    try:
-        # Try importing from current directory
-        if os.path.exists("logistic_regressioner.py"):
-            import importlib.util
-            spec = importlib.util.spec_from_file_location("logistic_regressioner", "logistic_regressioner.py")
-            lr_module = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(lr_module)
-            lr_module.main(model_path)
-            return True
-        else:
-            print("[WARN] logistic_regressioner.py not found in current directory.")
-            return False
-    except Exception as e:
-        print(f"[ERROR] Logistic Regressioner failed: {e}")
-        import traceback
-        traceback.print_exc()
-        return False
+    import runtime.externer_assessor_LogR as logistic_regressioner
+
+    logistic_regressioner.main(model_path)
+    return True
 
 
 def run_combiner(model_path):
