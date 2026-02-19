@@ -222,13 +222,6 @@ def plot_combined_auroc(y_true, ts_probs, lr_probs, ts_auc, lr_auc,
     ax.grid(True, linestyle='--', alpha=0.4)
     ax.set_aspect('equal')
 
-    # Add AUC difference annotation
-    auc_diff = ts_auc - lr_auc
-    sign = '+' if auc_diff >= 0 else ''
-    ax.annotate(f'ΔAUC: {sign}{auc_diff:.3f}', xy=(0.55, 0.15),
-                fontsize=13, fontweight='bold',
-                bbox=dict(boxstyle='round,pad=0.4', facecolor='white', edgecolor='gray', alpha=0.9))
-
     plt.tight_layout()
     plt.savefig(output_path, dpi=300, bbox_inches='tight', facecolor='white')
     plt.close()
@@ -262,14 +255,6 @@ def plot_combined_calibration(y_true, ts_probs, lr_probs, ts_brier, lr_brier, ou
     ax.legend(loc='upper left', fontsize=11, framealpha=0.95)
     ax.grid(True, linestyle='--', alpha=0.4)
     ax.set_aspect('equal')
-
-    # Add Brier difference annotation
-    brier_diff = ts_brier - lr_brier
-    sign = '+' if brier_diff >= 0 else ''
-    better = 'TS better' if brier_diff < 0 else 'LR better'
-    ax.annotate(f'ΔBrier: {sign}{brier_diff:.4f}\n({better})', xy=(0.65, 0.15),
-                fontsize=12, fontweight='bold',
-                bbox=dict(boxstyle='round,pad=0.4', facecolor='white', edgecolor='gray', alpha=0.9))
 
     plt.tight_layout()
     plt.savefig(output_path, dpi=300, bbox_inches='tight', facecolor='white')
@@ -330,8 +315,9 @@ def plot_combined_dca(y_true, ts_probs, lr_probs, ts_threshold, lr_threshold, ou
                edgecolors='black', linewidths=2, marker='s',
                label=f'LR Youden (t={lr_threshold:.2f}, NB={lr_nb_at_youden:.3f})')
 
-    # Styling
-    y_min = min(min(nb_ts), min(nb_lr), min(nb_all)) - 0.02
+    # Styling — clip y-axis to clinically relevant range
+    # (Treat All plunges far negative; don't let it stretch the plot)
+    y_min = max(min(min(nb_ts), min(nb_lr)), -0.1)
     y_max = max(max(nb_ts), max(nb_lr), prevalence) + 0.05
     ax.set_ylim(y_min, y_max)
     ax.set_xlim(0, 0.80)
@@ -341,11 +327,7 @@ def plot_combined_dca(y_true, ts_probs, lr_probs, ts_threshold, lr_threshold, ou
     ax.legend(loc='upper right', fontsize=10, framealpha=0.95)
     ax.grid(True, linestyle='--', alpha=0.4)
 
-    # Add prevalence annotation
-    ax.annotate(f'Event Rate: {prevalence:.1%}', xy=(0.02, y_max - 0.02),
-                fontsize=12, fontweight='bold',
-                bbox=dict(boxstyle='round,pad=0.3', facecolor='#FDEBD0', edgecolor='gray', alpha=0.9))
-
+    
     plt.tight_layout()
     plt.savefig(output_path, dpi=300, bbox_inches='tight', facecolor='white')
     plt.close()
