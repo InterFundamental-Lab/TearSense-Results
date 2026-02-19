@@ -1,16 +1,3 @@
-"""
-TearSense External Assessor
-═══════════════════════════════════════════════════════════════════════════
-
-Runs full TearSense inference pipeline on holdout test data, evaluates
-individual base models, and compares against Logistic Regression baseline.
-
-LR training is handled by logistic_regressioner.py (single source of truth).
-
-Usage:
-    python external_assessor.py <path_to_model_bundle.pkl>
-"""
-
 import joblib
 import os
 import json
@@ -26,7 +13,7 @@ from sklearn.calibration import CalibrationDisplay, calibration_curve
 # ═══════════════════════════════════════════════════════════════════════════════
 # IMPORT LR TRAINING + SHARED UTILITIES FROM SINGLE SOURCE OF TRUTH
 # ═══════════════════════════════════════════════════════════════════════════════
-from logistic_regressioner import (
+from runtime.externer_assessor_LogR import (
     train_lr,
     compute_all_metrics,
     find_youden_threshold,
