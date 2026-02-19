@@ -280,7 +280,7 @@ def main():
         print("-" * 40)
 
         print("   > Running Logistic Regression Assessor...")
-        external_assessor_LR.main(model_path)
+        # external_assessor_LR.main(model_path)
 
         if do_shap:
             print("   > Running SHAP Analysis...")

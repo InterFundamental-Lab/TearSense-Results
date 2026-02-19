@@ -318,10 +318,10 @@ def main(model_path, tearsense_probs=None):
     os.makedirs(output_dir, exist_ok=True)
     
     # Check for training data
-    X_train = pkg.get('X_train_all')
-    y_train = pkg.get('y_train_all')
-    X_test = pkg.get('X_test_exact')
-    y_test = pkg.get('y_test_exact')
+    X_test = pkg.get('X_train_all')
+    y_test = pkg.get('y_train_all')
+    X_train = pkg.get('X_test_exact')
+    y_train = pkg.get('y_test_exact')
     cat_cols = pkg.get('cat_cols', [])
     feature_names = pkg.get('feature_names', [])
     
@@ -330,6 +330,9 @@ def main(model_path, tearsense_probs=None):
     feature_engineering = pkg.get('feature_engineering', True)
     
     if X_train is None or y_train is None:
+        import time
+        print('holding 50 seconds')
+        time.sleep(50)
         print("[INFO] Training data not in PKL. Attempting to reconstruct from training.csv...")
         
         # Try to reconstruct from training.csv
@@ -400,11 +403,11 @@ def main(model_path, tearsense_probs=None):
     
     lr_model = LogisticRegression(
         penalty='l2',
-        C=1.0,
+        C=0.0001,
         solver='lbfgs',
-        max_iter=1000,
+        max_iter=10,
         random_state=42,
-        class_weight='balanced'  # Handle imbalanced data
+        # class_weight='balanced'
     )
     
     lr_model.fit(X_train_scaled, y_train_arr)
@@ -606,27 +609,3 @@ def main(model_path, tearsense_probs=None):
     return lr_metrics, comparison
 
 
-# ==========================================
-# ENTRY POINT
-# ==========================================
-
-if __name__ == "__main__":
-    # Option 1: Command line
-    parser = argparse.ArgumentParser(description="LR baseline comparison for TearSense")
-    parser.add_argument("--model_path", type=str, required=False, help="Path to .pkl file")
-    args = parser.parse_args()
-    
-    if args.model_path:
-        main(args.model_path)
-    else:
-        # Option 2: Direct path for testing
-        serials_to_run = [
-            '03022026_115404_58666',
-        ]
-        
-        for serial in serials_to_run:
-            model_path = f'outputs/{serial}/model/{serial}.pkl'
-            if os.path.exists(model_path):
-                main(model_path)
-            else:
-                print(f"[WARNING] Model not found: {model_path}")
