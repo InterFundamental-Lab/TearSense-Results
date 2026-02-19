@@ -36,7 +36,7 @@ from sklearn.calibration import calibration_curve
 # ═══════════════════════════════════════════════════════════════════════════════
 # IMPORT LR TRAINING FROM SINGLE SOURCE OF TRUTH
 # ═══════════════════════════════════════════════════════════════════════════════
-from logistic_regressioner import (
+from runtime.externer_assessor_LogR import (
     train_lr,
     compute_all_metrics,
     find_youden_threshold,
