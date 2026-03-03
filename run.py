@@ -24,6 +24,7 @@ import joblib
 import pandas as pd
 
 import runtime.externer_assessor_shap as external_assessor_shap
+import runtime.externer_assessor_shap_ensemble as external_assessor_shap_ensemble
 import runtime.external_assessor as external_assessor
 import runtime.find_best as find_best
 
@@ -159,6 +160,21 @@ def run_shap_analysis(model_path, serial, assessor_dir):
         traceback.print_exc()
         return False
 
+def run_shap_ensemble_analysis(model_path, serial, assessor_dir):
+    """
+    Run ensemble SHAP analysis on the TearSense pipeline.
+    Output goes directly to external_assessor/{serial}/shap_ensemble/
+    """
+    shap_dir = os.path.join(assessor_dir, serial, "shap_ensemble")
+    try:
+        external_assessor_shap_ensemble.main(model_path, output_dir=shap_dir)
+        return True
+    except Exception as e:
+        print(f"[ERROR] Ensemble SHAP analysis failed: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
 
 def run_best_model_analysis(best_serial, outputs_dir="outputs", assessor_dir="external_assessor"):
     print("\n" + "=" * 70)
@@ -231,6 +247,9 @@ def main():
 
         print("   > Running End-to-End SHAP Analysis...")
         run_shap_analysis(model_path, serial, ASSESSOR_DIR)
+
+        print("   > Running Ensemble SHAP Analysis...")
+        run_shap_ensemble_analysis(model_path, serial, ASSESSOR_DIR)
 
         print("   > Organizing output files...")
         move_outputs(serial, ASSESSOR_DIR)
