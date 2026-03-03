@@ -358,7 +358,6 @@ def build_pipeline_predict_fn(bundle, raw_feat, all_feat,
 def plot_shap_summary(shap_vals, X_display, feat_names, path, serial):
     """SHAP beeswarm summary plot."""
     plt.figure(figsize=(12, max(8, len(feat_names) * 0.35)))
-    plt.title(f"SHAP Feature Importance — TearSense Full Pipeline — {serial}")
     shap.summary_plot(
         shap_vals, X_display,
         feature_names=feat_names,
