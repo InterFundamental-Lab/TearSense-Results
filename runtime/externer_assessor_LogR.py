@@ -1,31 +1,3 @@
-"""
-Logistic Regression Baseline — Single Source of Truth
-═══════════════════════════════════════════════════════════════════════════
-
-All LR training for TearSense comparison flows through this module.
-Both combiner.py and external_assessor.py import from here.
-
-Exports:
-    train_lr()              → trains LR, returns (probs_train, probs_test, model, scaler, feature_cols, coef_df, formula_str)
-    EXCLUDE_FEATURES        → list of feature names excluded from LR (edit to add/remove)
-    prepare_data_for_lr()   → one-hot encode + fill missing
-    align_columns()         → align train/test columns
-    generate_formula()      → human-readable LR formula
-    compute_all_metrics()   → full clinical metrics dict
-    find_youden_threshold() → optimal threshold via Youden's J
-    calculate_net_benefit()           → scalar net benefit
-    calculate_net_benefit_curve()     → net benefit curve for DCA
-    get_calibration_slope_intercept() → calibration slope + intercept
-    bootstrap_metrics()     → 95% CIs for all metrics
-    NumpyEncoder            → JSON encoder for numpy types
-
-Usage (standalone):
-    python logistic_regressioner.py --model_path outputs/SERIAL/model/SERIAL.pkl
-
-Usage (as import):
-    from logistic_regressioner import train_lr, compute_all_metrics, find_youden_threshold
-"""
-
 import argparse
 import joblib
 import json
