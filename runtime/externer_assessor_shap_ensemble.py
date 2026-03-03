@@ -132,7 +132,11 @@ def main(model_path, output_dir=None):
     X_display = X_test_raw.copy()
     for col in cat_cols:
         if col in X_display.columns:
-            X_display[col] = X_display[col].astype('category').cat.codes
+            X_display[col] = X_display[col].astype(str).astype('category').cat.codes
+            
+    # Force all columns to float for accurate SHAP color mapping
+    for col in X_display.columns:
+        X_display[col] = pd.to_numeric(X_display[col], errors='coerce').fillna(0).astype(float)
             
     # Exclusion Criteria
     exclude_features = ['Logit_Retear_Risk']
