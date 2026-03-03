@@ -208,19 +208,6 @@ def run_best_model_analysis(best_serial, outputs_dir="outputs", assessor_dir="ex
     else:
         print(f"\n[STEP 1] Logistic Regression analysis already exists. Skipping.")
     
-    # ═══════════════════════════════════════════════════════════════════════
-    # Run Combiner (generates combined AUROC, Calibration, DCA plots)
-    # ═══════════════════════════════════════════════════════════════════════
-    if not combined_exists:
-        print(f"\n[STEP 2] Running Combined Analysis (TearSense vs LR plots)...")
-        print(f"         Model: {model_path}")
-        success = run_combiner(model_path)
-        if success:
-            print("[DONE] Combined Analysis complete.")
-        else:
-            print("[SKIP] Combined Analysis could not be run.")
-    else:
-        print(f"\n[STEP 2] Combined Analysis already exists. Skipping.")
     
     # ═══════════════════════════════════════════════════════════════════════
     # Move outputs to external_assessor directory
@@ -261,15 +248,19 @@ def main():
         print(f"Path: {model_path}")
         print("-" * 40)
 
-        print("   > Running Logistic Regression Assessor...")
-        # external_assessor_LR.main(model_path)
-
+        # (Optional SHAP run)
         if do_shap:
             print("   > Running SHAP Analysis...")
             external_assessor_shap.main(model_path)
 
         print("   > Running General External Assessor...")
         external_assessor.main(model_path)
+
+        print("   > Running Logistic Regression Assessor...")
+        run_logistic_regressioner(model_path)
+
+        print("   > Running Combined Analysis (Plots & DCA)...")
+        run_combiner(model_path)
 
         print("   > Organizing output files...")
         move_outputs(serial, ASSESSOR_DIR)

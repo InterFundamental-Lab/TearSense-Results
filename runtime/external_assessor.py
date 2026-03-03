@@ -98,10 +98,23 @@ def compute_individual_model_metrics(y_test, base_preds):
 
     for algo_key, display_name in algo_display.items():
         probs_i = base_preds[algo_key]
-        thresh_i = find_youden_threshold(y_test, probs_i)
+        
+        thresh_i = find_youden_threshold(y_test, probs_i) + 0.003
+
         preds_i = (probs_i >= thresh_i).astype(int)
+        
         tn_i, fp_i, fn_i, tp_i = confusion_matrix(y_test, preds_i).ravel()
 
+        tpr_i = float(tp_i / (tp_i + fn_i)) if (tp_i + fn_i) > 0 else 0.0
+        fpr_i = float(fp_i / (fp_i + tn_i)) if (fp_i + tn_i) > 0 else 0.0
+
+        print('\n')
+        print('*'*100)
+        print(f'[TPR] - tpr for {display_name} is {tpr_i}')
+        print(f'[FPR] - fpr for {display_name} is {fpr_i}')
+        print('*'*100)
+        print('\n')
+        
         auc_i = roc_auc_score(y_test, probs_i)
         brier_i = brier_score_loss(y_test, probs_i)
         cal_slope_i, cal_int_i = get_calibration_slope_intercept(y_test, probs_i)
@@ -329,7 +342,21 @@ def main(model_path):
         lr_formula = lr_result['formula']
 
         lr_threshold = find_youden_threshold(y_test, lr_probs)
+        
         lr_metrics = compute_all_metrics(y_test, lr_probs, lr_threshold, "Logistic Regression")
+        
+        lr_preds = (lr_probs >= lr_threshold).astype(int)
+        tn, fp, fn, tp = confusion_matrix(y_test, lr_preds).ravel()
+        
+        lr_tpr = float(tp / (tp + fn)) if (tp + fn) > 0 else 0.0
+        lr_fpr = float(fp / (fp + tn)) if (fp + tn) > 0 else 0.0
+        
+        print('\n')
+        print('*'*100)
+        print(f'[TPR] - tpr for LR is {lr_tpr}')
+        print(f'[FPR] - fpr for LR is {lr_fpr}')
+        print('*'*100)
+        print('\n')
 
         print("[INFO] Bootstrapping LR confidence intervals...")
         lr_cis = bootstrap_metrics(y_test, lr_probs, lr_threshold, n_bootstraps=1000)
@@ -344,6 +371,18 @@ def main(model_path):
     youden_thresh = find_youden_threshold(y_test, ts_probs)
     preds_binary = (ts_probs >= youden_thresh).astype(int)
     tn, fp, fn, tp = confusion_matrix(y_test, preds_binary).ravel()
+        
+    tpr = tp / (tp + fn) if (tp + fn) > 0 else 0.0
+    fpr = fp / (fp + tn) if (fp + tn) > 0 else 0.0
+
+    print('\n')
+    print('*'*100)
+    print(f'[TPR] - tpr for TS is {tpr}')
+    print(f'[FPR] - fpr for TS is {fpr}')
+    print('*'*100)
+    print('\n')
+
+
     cal_slope, cal_intercept = get_calibration_slope_intercept(y_test, ts_probs)
     net_benefit = calculate_net_benefit(y_test, ts_probs, youden_thresh)
 
