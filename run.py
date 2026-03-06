@@ -27,7 +27,7 @@ import runtime.externer_assessor_shap as external_assessor_shap
 import runtime.externer_assessor_shap_ensemble as external_assessor_shap_ensemble
 import runtime.external_assessor as external_assessor
 import runtime.find_best as find_best
-
+import config
 
 def get_serial_from_path(model_path):
     """Extracts serial from filename (e.g., '.../model/05022026_123.pkl' -> '05022026_123')"""
