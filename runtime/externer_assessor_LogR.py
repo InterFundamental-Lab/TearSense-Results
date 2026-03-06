@@ -20,6 +20,7 @@ from sklearn.calibration import CalibrationDisplay
 # These are removed before training so LR only sees raw clinical features.
 # ══════════════════════════════════════════════════════════════════════════════
 EXCLUDE_FEATURES = [
+    'Logit_Retear_Risk',
     'Tear_AP_ML_Ratio',
     'Tear_Area_cm2',
     'Log_Tear_Area',

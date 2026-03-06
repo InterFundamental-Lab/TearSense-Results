@@ -237,12 +237,12 @@ def plot_combined_calibration(y_true, ts_probs, lr_probs, ts_brier, lr_brier, ou
     ax.plot([0, 1], [0, 1], 'k--', lw=2, label='Perfectly Calibrated')
 
     # TearSense calibration curve
-    prob_true_ts, prob_pred_ts = calibration_curve(y_true, ts_probs, n_bins=10, strategy='uniform')
+    prob_true_ts, prob_pred_ts = calibration_curve(y_true, ts_probs, n_bins=10, strategy='quantile')
     ax.plot(prob_pred_ts, prob_true_ts, 's-', color='#E74C3C', lw=2.5, markersize=10,
             label=f'TearSense (Brier = {ts_brier:.3f})')
 
     # Logistic Regression calibration curve
-    prob_true_lr, prob_pred_lr = calibration_curve(y_true, lr_probs, n_bins=10, strategy='uniform')
+    prob_true_lr, prob_pred_lr = calibration_curve(y_true, lr_probs, n_bins=10, strategy='quantile')
     ax.plot(prob_pred_lr, prob_true_lr, 'o-', color='#3498DB', lw=2.5, markersize=10,
             label=f'Logistic Regression (Brier = {lr_brier:.3f})')
 

@@ -99,7 +99,8 @@ def compute_individual_model_metrics(y_test, base_preds):
     for algo_key, display_name in algo_display.items():
         probs_i = base_preds[algo_key]
         
-        thresh_i = find_youden_threshold(y_test, probs_i) + 0.003
+        # thresh_i = find_youden_threshold(y_test, probs_i) + 0.003
+        thresh_i = find_youden_threshold(y_test, probs_i) 
 
         preds_i = (probs_i >= thresh_i).astype(int)
         
@@ -517,9 +518,9 @@ def main(model_path):
 
     fig, ax = plt.subplots(figsize=(8, 8))
 
-    CalibrationDisplay.from_predictions(y_test, ts_probs, n_bins=10, name="TearSense", ax=ax)
+    CalibrationDisplay.from_predictions(y_test, ts_probs, n_bins=10, strategy='quantile', name="TearSense", ax=ax)
     if lr_probs is not None:
-        CalibrationDisplay.from_predictions(y_test, lr_probs, n_bins=10, name="Logistic Regression", ax=ax)
+        CalibrationDisplay.from_predictions(y_test, lr_probs, n_bins=10, strategy='quantile', name="Logistic Regression", ax=ax)
 
     ax.set_title(f"Calibration Comparison — {serial_number}")
     ax.grid(True, linestyle='--', alpha=0.5)

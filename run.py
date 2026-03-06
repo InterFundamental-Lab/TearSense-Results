@@ -22,6 +22,7 @@ import glob
 import shutil
 import joblib
 import pandas as pd
+import config
 
 import runtime.externer_assessor_shap as external_assessor_shap
 import runtime.externer_assessor_shap_ensemble as external_assessor_shap_ensemble
@@ -244,9 +245,12 @@ def main():
 
         print("   > Running Combined Analysis (Plots & DCA)...")
         run_combiner(model_path)
-
-        print("   > Running End-to-End SHAP Analysis...")
-        run_shap_analysis(model_path, serial, ASSESSOR_DIR)
+        
+        if config.skip_e2e_shap:
+            print("   > Skipping End-to-End SHAP Analysis...")
+        else:
+            print("   > Running End-to-End SHAP Analysis...")
+            run_shap_analysis(model_path, serial, ASSESSOR_DIR)
 
         print("   > Running Ensemble SHAP Analysis...")
         run_shap_ensemble_analysis(model_path, serial, ASSESSOR_DIR)
