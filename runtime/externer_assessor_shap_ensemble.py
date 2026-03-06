@@ -68,6 +68,9 @@ def main(model_path, output_dir=None):
     for col in cat_cols:
         if col in X_enc.columns:
             X_enc[col] = X_enc[col].astype('category').cat.codes
+    # Coerce all columns to numeric (handles object dtypes from saved bundles)
+    for col in X_enc.columns:
+        X_enc[col] = pd.to_numeric(X_enc[col], errors='coerce')
     # RF doesn't like NaNs sometimes, XGB/LGBM handles them
     X_rf = X_enc.copy().fillna(-999)
     X_xgb_lgbm = X_enc.copy()
