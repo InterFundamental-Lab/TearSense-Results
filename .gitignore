@@ -12,3 +12,6 @@ catboost_info/
 /comment_remover.py
 /training.csv
 /Archive
+/external_assessor
+/outputs
+**/**.sh
