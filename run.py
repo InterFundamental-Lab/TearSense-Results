@@ -22,7 +22,6 @@ import glob
 import shutil
 import joblib
 import pandas as pd
-import config
 
 import runtime.externer_assessor_shap as external_assessor_shap
 import runtime.externer_assessor_shap_ensemble as external_assessor_shap_ensemble
