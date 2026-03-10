@@ -51,9 +51,7 @@ except ImportError:
 # ENGINEERED FEATURES — excluded from SHAP input, rebuilt inside wrapper
 # Sync with externer_assessor_LogR.EXCLUDE_FEATURES
 # ══════════════════════════════════════════════════════════════════════════════
-ENGINEERED_FEATURES = [
-    'Logit_Retear_Risk'
-]
+ENGINEERED_FEATURES = []
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -160,7 +158,7 @@ def prepare_shap_data(bundle):
     all_feat    = list(bundle.get('feature_names', []))
     cat_cols    = list(bundle.get('cat_cols', []))
     cat_idx_full = list(bundle.get('cat_indices', []))
-    feat_eng    = bundle.get('feature_engineering', True)
+    feat_eng = False
 
     # Which engineered features are actually present in this model?
     eng_present = [f for f in ENGINEERED_FEATURES if f in all_feat] if feat_eng else []
@@ -255,7 +253,7 @@ def build_pipeline_predict_fn(bundle, raw_feat, all_feat,
     is_wa        = bundle.get('is_weighted_avg', False)
     weights      = bundle.get('weights')
     weights_arr  = bundle.get('weights_array')
-    feat_eng     = bundle.get('feature_engineering', True)
+    feat_eng     = False
     sc           = bundle.get('stacking_config', {})
     use_inter    = sc.get('use_interactions', True)
     use_rank     = sc.get('use_rank_features', False)
@@ -426,7 +424,9 @@ def main(model_path, output_dir=None, background_k=50):
     print(f"[SHAP] Loading: {model_path}")
     bundle = joblib.load(model_path)
     serial = bundle.get('serial_number', 'unknown')
-    feat_eng = bundle.get('feature_engineering', True)
+    # Force feature engineering to False so engineered features are treated as raw inputs
+    # and get their own SHAP values directly instead of being dynamically recalculated.
+    feat_eng = False
 
     if output_dir is None:
         output_dir = os.path.join("external_assessor", serial, "SHAP_Analysis")
@@ -492,6 +492,86 @@ def main(model_path, output_dir=None, background_k=50):
         shap_values = explainer.shap_values(X_test_shap, silent=True)
     elapsed = time.time() - t0
     print(f"[SHAP] Done in {elapsed:.1f}s ({elapsed/60:.1f} min)")
+
+    # ── 6b. Distribute Logit_Retear_Risk SHAP values based on Logit P model ──
+    try:
+        coef_path = os.path.join("external_assessor", serial, "Logistic_Regression_Baseline", "lr_coefficients.csv")
+        if not os.path.exists(coef_path):
+            coef_path = os.path.join("outputs", serial, "stats", "lr_coefficients.csv")
+            
+        if os.path.exists(coef_path) and 'Logit_Retear_Risk' in raw_feat:
+            print("[SHAP] Combining Logit P SHAP values (distributing Logit_Retear_Risk importance)...")
+            coefs = pd.read_csv(coef_path)
+            w_dict = dict(zip(coefs['Feature'], coefs['Coefficient']))
+            
+            # Recreate exact encoded dataset for Logit P
+            X_train_raw = bundle.get('X_train_all')
+            if not isinstance(X_train_raw, pd.DataFrame):
+                X_train_raw = pd.DataFrame(X_train_raw, columns=all_feat)
+            X_test_df = pd.DataFrame(X_test_shap, columns=raw_feat)
+            
+            # Recreate dummy encoding for categoricals
+            X_train_enc = pd.get_dummies(X_train_raw, columns=[c for c in cat_cols if c in X_train_raw.columns], dummy_na=True)
+            X_test_enc = pd.get_dummies(X_test_df, columns=[c for c in cat_cols if c in X_test_df.columns], dummy_na=True)
+            X_test_enc = X_test_enc.reindex(columns=X_train_enc.columns, fill_value=0)
+            
+            lr_cols = [c for c in w_dict.keys() if c in X_train_enc.columns]
+            X_train_lr = X_train_enc[lr_cols].fillna(0).astype(float)
+            X_test_lr = X_test_enc[lr_cols].fillna(0).astype(float)
+            
+            mean_vals = X_train_lr.mean()
+            std_vals = X_train_lr.std()
+            std_vals[std_vals == 0] = 1.0
+            
+            X_test_scaled = (X_test_lr - mean_vals) / std_vals
+            weights = np.array([w_dict[c] for c in lr_cols])
+            shap_lr_expanded = X_test_scaled * weights
+            
+            # Map expanded SHAP back to raw_feat space
+            shap_lr_orig = np.zeros((len(X_test_shap), len(raw_feat)))
+            for i, col in enumerate(lr_cols):
+                orig_col = col
+                if col not in raw_feat:
+                    for cat in cat_cols:
+                        if col.startswith(cat + '_'):
+                            orig_col = cat
+                            break
+                if orig_col in raw_feat:
+                    orig_idx = raw_feat.index(orig_col)
+                    shap_lr_orig[:, orig_idx] += shap_lr_expanded[col].values
+            
+            # Distribute the actual TearSense SHAP of Logit_Retear_Risk proportionally
+            logit_idx = raw_feat.index('Logit_Retear_Risk')
+            logit_shap_vals = shap_values[:, logit_idx].copy()
+            
+            # Calculate proportion of each feature's contribution to the LR Logit P
+            # We use absolute values to determine the proportion of the magnitude
+            abs_lr_sum = np.abs(shap_lr_orig).sum(axis=1, keepdims=True)
+            abs_lr_sum[abs_lr_sum == 0] = 1e-9 # avoid division by zero
+            
+            # Signed distribution: if LR feature pushed Logit P up, and Logit P pushed TearSense up, feature gets positive attribution
+            # The proportion is (shap_lr_orig / total_abs_lr) * logit_shap_vals
+            # Wait, if we just want to average them as requested by user, we can literally average them:
+            # "literally add/average those SHAP values with the TearSense SHAP values?" -> "yes."
+            
+            # We will perform a direct addition of the scaled Logit P SHAP values, but to keep the scale consistent 
+            # with probability, we distribute the exact TearSense SHAP value of Logit_Retear_Risk down to the base features.
+            
+            distribution_matrix = (shap_lr_orig / abs_lr_sum) * np.abs(logit_shap_vals[:, None])
+            # Ensure sign matches: sign(shap_lr_orig) * sign(logit_shap_vals)
+            # Actually, (shap_lr_orig / abs_lr_sum) has the sign of shap_lr_orig.
+            # If Logit_Retear_Risk has a positive SHAP (increases risk), then a feature that increased Logit P (positive shap_lr_orig) should get positive attribution.
+            # So: attribution = sign(shap_lr_orig) * abs(shap_lr_orig / abs_lr_sum) * logit_shap_vals
+            # Which simplifies to: (shap_lr_orig / abs_lr_sum) * logit_shap_vals
+            
+            distribution_matrix = (shap_lr_orig / abs_lr_sum) * logit_shap_vals[:, None]
+            
+            shap_values += distribution_matrix
+            shap_values[:, logit_idx] = 0.0 # Clear the Logit_Retear_Risk column itself so it's fully distributed
+            print("[SHAP] Successfully combined Logit P analysis into TearSense SHAP values.")
+            
+    except Exception as e:
+        print(f"[SHAP-WARN] Could not combine Logit P SHAP values: {e}")
 
     # ── 7. Plots ──
     print("[SHAP] Generating plots...")
