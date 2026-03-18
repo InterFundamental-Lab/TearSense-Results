@@ -46,6 +46,8 @@ try:
 except ImportError:
     raise ImportError("shap is required.  pip install shap")
 
+from shap_config import rename_features
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # ENGINEERED FEATURES — excluded from SHAP input, rebuilt inside wrapper
@@ -389,13 +391,63 @@ def plot_shap_bar(shap_vals, feat_names, path, serial):
     print(f"[SHAP] Saved bar plot → {path}")
 
 
-def export_feature_importance(shap_vals, feat_names, path):
+def export_feature_importance(shap_vals, feat_names, path, X_display=None):
     scores = np.abs(shap_vals).mean(axis=0)
     df = pd.DataFrame({
         'Feature': feat_names,
         'Mean_Abs_SHAP': scores,
     }).sort_values('Mean_Abs_SHAP', ascending=False).reset_index(drop=True)
     df['Rank'] = range(1, len(df) + 1)
+
+    # Compute directionality: relationship between feature value and SHAP value
+    if X_display is not None:
+        directions = []
+        for feat in df['Feature']:
+            feat_idx = feat_names.index(feat)
+            if isinstance(X_display, pd.DataFrame):
+                x_col = X_display.iloc[:, feat_idx].values.astype(float)
+            else:
+                x_col = X_display[:, feat_idx].astype(float)
+            s_col = shap_vals[:, feat_idx].astype(float)
+
+            # Remove NaN pairs
+            mask = ~(np.isnan(x_col) | np.isnan(s_col))
+            if mask.sum() < 3:
+                directions.append("—")
+                continue
+
+            x_valid = x_col[mask]
+            s_valid = s_col[mask]
+            n_unique = len(np.unique(x_valid))
+
+            if n_unique <= 5:
+                # Binary/categorical: compare mean SHAP between high vs low group
+                median_val = np.median(x_valid)
+                high = s_valid[x_valid > median_val]
+                low = s_valid[x_valid <= median_val]
+                if len(high) == 0 or len(low) == 0:
+                    directions.append("—")
+                    continue
+                mean_diff = high.mean() - low.mean()
+                # Use feature's mean |SHAP| as scale reference for threshold
+                scale = np.abs(s_valid).mean()
+                if scale == 0 or abs(mean_diff) < scale * 0.05:
+                    directions.append("—")
+                elif mean_diff > 0:
+                    directions.append("+ (↑ value → ↑ risk)")
+                else:
+                    directions.append("- (↑ value → ↓ risk)")
+            else:
+                # Continuous: Pearson correlation
+                corr = np.corrcoef(x_valid, s_valid)[0, 1]
+                if np.isnan(corr) or abs(corr) < 0.05:
+                    directions.append("—")
+                elif corr > 0:
+                    directions.append("+ (↑ value → ↑ risk)")
+                else:
+                    directions.append("- (↑ value → ↓ risk)")
+        df['Directionality'] = directions
+
     df.to_csv(path, index=False)
     print(f"[SHAP] Feature importance table → {path}")
     return df
@@ -575,24 +627,26 @@ def main(model_path, output_dir=None, background_k=50):
 
     # ── 7. Plots ──
     print("[SHAP] Generating plots...")
-    X_display = pd.DataFrame(X_test_shap, columns=raw_feat)
+    display_feat = rename_features(raw_feat)
+    X_display = pd.DataFrame(X_test_shap, columns=display_feat)
 
     plot_shap_summary(
-        shap_values, X_display, raw_feat,
+        shap_values, X_display, display_feat,
         os.path.join(output_dir, f"shap_summary_{serial}.png"), serial,
     )
     plot_shap_bar(
-        shap_values, raw_feat,
+        shap_values, display_feat,
         os.path.join(output_dir, f"shap_bar_{serial}.png"), serial,
     )
 
     # ── 8. Export data ──
     importance_df = export_feature_importance(
-        shap_values, raw_feat,
+        shap_values, display_feat,
         os.path.join(output_dir, f"feature_importance_{serial}.csv"),
+        X_display=X_display,
     )
 
-    sv_df = pd.DataFrame(shap_values, columns=raw_feat)
+    sv_df = pd.DataFrame(shap_values, columns=display_feat)
     sv_path = os.path.join(output_dir, f"shap_values_{serial}.csv")
     sv_df.to_csv(sv_path, index=False)
     print(f"[SHAP] Raw SHAP values → {sv_path}")

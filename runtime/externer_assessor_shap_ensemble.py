@@ -16,6 +16,7 @@ from runtime.externer_assessor_shap import (
     plot_shap_bar,
     export_feature_importance,
 )
+from shap_config import rename_features
 
 def main(model_path, output_dir=None):
     print("\n" + "=" * 70)
@@ -149,6 +150,9 @@ def main(model_path, output_dir=None):
     ensemble_shap_filtered = ensemble_shap[:, indices_to_keep]
     X_display_filtered = X_display.iloc[:, indices_to_keep]
 
+    # Rename to doctor-friendly labels
+    filtered_feat = rename_features(filtered_feat)
+
     plot_shap_summary(
         ensemble_shap_filtered, X_display_filtered, filtered_feat,
         os.path.join(output_dir, f"shap_summary_{serial}.png"), serial,
@@ -161,6 +165,7 @@ def main(model_path, output_dir=None):
     importance_df = export_feature_importance(
         ensemble_shap_filtered, filtered_feat,
         os.path.join(output_dir, f"feature_importance_{serial}.csv"),
+        X_display=X_display_filtered,
     )
 
     sv_df = pd.DataFrame(ensemble_shap_filtered, columns=filtered_feat)

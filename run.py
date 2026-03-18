@@ -25,6 +25,7 @@ import pandas as pd
 
 import runtime.externer_assessor_shap as external_assessor_shap
 import runtime.externer_assessor_shap_ensemble as external_assessor_shap_ensemble
+import runtime.externer_assessor_shap_e2e_tree as external_assessor_shap_e2e_tree
 import runtime.external_assessor as external_assessor
 import runtime.find_best as find_best
 import config
@@ -176,6 +177,22 @@ def run_shap_ensemble_analysis(model_path, serial, assessor_dir):
         return False
 
 
+def run_shap_e2e_tree_analysis(model_path, serial, assessor_dir):
+    """
+    Run TreeSHAP E2E analysis (ensemble TreeSHAP + Logit P redistribution).
+    Output goes directly to external_assessor/{serial}/shap_e2e_tree/
+    """
+    shap_dir = os.path.join(assessor_dir, serial, "shap_e2e_tree")
+    try:
+        external_assessor_shap_e2e_tree.main(model_path, output_dir=shap_dir)
+        return True
+    except Exception as e:
+        print(f"[ERROR] TreeSHAP E2E analysis failed: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
+
 def run_best_model_analysis(best_serial, outputs_dir="outputs", assessor_dir="external_assessor"):
     print("\n" + "=" * 70)
     print("  BEST MODEL ANALYSIS: Logistic Regression + Combined Plots")
@@ -253,6 +270,9 @@ def main():
         
         print("   > Running Ensemble SHAP Analysis...")
         run_shap_ensemble_analysis(model_path, serial, ASSESSOR_DIR)
+
+        print("   > Running TreeSHAP E2E Analysis (Logit P redistributed)...")
+        run_shap_e2e_tree_analysis(model_path, serial, ASSESSOR_DIR)
 
         print("   > Organizing output files...")
         move_outputs(serial, ASSESSOR_DIR)
