@@ -1,0 +1,65 @@
+Insurance type
+Private health insurance → 0
+Workers’ compensation → 1
+Third-party / CTP → 2
+DVA / Veteran affairs → 3
+Self-funded (user pays) → 4
+Public patient → 5
+None / unknown / no health fund → 6
+
+
+Primary_Revision
+primary: 0 
+revision: 1
+
+
+tear_characteristics_Full
+0 = no tear
+1 = intrasubstance
+2 = partial thickness
+3 = full thickness
+
+OA_converted
+Graded 1-4
+
+Cuff_Characteristics_Tissue_Quality
+1 = Fair, F, f, 1, 2, Medic
+2 = Good, G, g, 3
+3 = VG, very good, V Gd, vg, V, V Good
+4 = Excellent, Exc, E, e, 4, Ex, excellnt
+
+Cuff_Characteristics_Mobility
+1 = Fair, F, f, 1, 2, Medic
+2 = Good, G, g, 3
+3 = VG, very good, V Gd, vg, V, V Good
+4 = Excellent, Exc, E, e, 4, Ex, excellnt
+
+
+Cuff_Characteristics_Repair_Quality
+1 = Fair, F, f, 1, 2, Medic
+2 = Good, G, g, 3
+3 = VG, very good, V Gd, vg, V, V Good
+4 = Excellent, Exc, E, e, 4, Ex, excellnt
+
+
+surgery_details_Repair_Type
+Undersurface / articular → 0
+Bursal → 1
+Both → 2
+Missing / junk → "NaN"
+
+
+
+PREOP_Passive_ROM_IR
+5 – T6–T8
+4 – T9–T10
+3 – T11–T12
+2 – L1–L3
+1 – L4–L5–S1–S2
+0 – S3–S5 (and worse)
+
+
+PREOP_Strength_IR
+in Newton (N)
+
+
